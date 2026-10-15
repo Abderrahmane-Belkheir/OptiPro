@@ -12,6 +12,9 @@ dist
 dist-ssr
 *.local
 
+# Playwright verification screenshots taken during development — debug artifacts, not source.
+screenshots
+
 # Editor directories and files
 .vscode/*
 !.vscode/extensions.json

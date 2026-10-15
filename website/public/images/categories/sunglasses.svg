@@ -1,0 +1,18 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 800 1000">
+  <defs>
+    <linearGradient id="bg-sun" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#E9E0CF"/>
+      <stop offset="1" stop-color="#DCCBA8"/>
+    </linearGradient>
+  </defs>
+  <rect width="800" height="1000" fill="url(#bg-sun)"/>
+  <circle cx="140" cy="140" r="110" fill="none" stroke="#C9A879" stroke-width="2"/>
+  <ellipse cx="400" cy="700" rx="230" ry="30" fill="#DDD1B7" opacity="0.4"/>
+  <path d="M150,460 L402,460 L384,620 Q280,654 176,620 Z" fill="#15130F" stroke="#15130F" stroke-width="22" stroke-linejoin="round"/>
+  <path d="M650,460 L398,460 L416,620 Q520,654 624,620 Z" fill="#15130F" stroke="#15130F" stroke-width="22" stroke-linejoin="round"/>
+  <path d="M398,478 Q400,470 402,478" stroke="#15130F" stroke-width="16" fill="none" stroke-linecap="round"/>
+  <path d="M150,500 Q90,486 40,452" stroke="#15130F" stroke-width="18" fill="none" stroke-linecap="round"/>
+  <path d="M650,500 Q710,486 760,452" stroke="#15130F" stroke-width="18" fill="none" stroke-linecap="round"/>
+  <circle cx="150" cy="468" r="6" fill="#96744A"/>
+  <circle cx="650" cy="468" r="6" fill="#96744A"/>
+</svg>

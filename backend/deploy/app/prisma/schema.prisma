@@ -1,0 +1,90 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+// Get a free hosted Postgres database in seconds: `npx create-db`
+
+generator client {
+  provider = "prisma-client-js"
+  output   = "../src/generated/prisma"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+model Brand {
+  id   Int    @id @default(autoincrement())
+  name String
+
+  tenantKey String @map("tenant_key")
+  tenant    Tenant @relation(fields: [tenantKey], references: [key])
+
+  frames Frame[]
+
+  @@unique([tenantKey, name])
+  @@map("brands")
+}
+
+model Category {
+  id       Int    @id @default(autoincrement())
+  name     String @unique
+  imageUrl String @map("image_url")
+
+  frames Frame[]
+
+  @@map("categories")
+}
+
+model Frame {
+  id       String   @id
+  name     String
+  price    Float?
+  currency String?
+  images   String[]
+  shape    String?
+  colors   String[]
+  stock    Int      @default(0)
+
+  brandId    Int      @map("brand_id")
+  brand      Brand    @relation(fields: [brandId], references: [id])
+  categoryId Int      @map("category_id")
+  category   Category @relation(fields: [categoryId], references: [id])
+
+  tenantKey String @map("tenant_key")
+  tenant    Tenant @relation(fields: [tenantKey], references: [key])
+
+  @@map("frames")
+}
+
+model Accessory {
+  id          String  @id
+  name        String
+  description String
+  price       Float?
+  currency    String?
+  imageUrl    String  @map("image_url")
+  stock       Int     @default(0)
+
+  tenantKey String @map("tenant_key")
+  tenant    Tenant @relation(fields: [tenantKey], references: [key])
+
+  @@map("accessories")
+}
+
+model Tenant {
+  key  String @id
+  host String @unique
+  name String
+
+  instagramUrl String? @map("instagram_url")
+  tiktokUrl    String? @map("tiktok_url")
+  phone        String?
+  email        String?
+  address      String?
+
+  brands      Brand[]
+  frames      Frame[]
+  accessories Accessory[]
+
+  @@map("tenants")
+}

@@ -1,0 +1,16 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 800 1000">
+  <defs>
+    <linearGradient id="bg-optical" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#F7F3EC"/>
+      <stop offset="1" stop-color="#E9E0CF"/>
+    </linearGradient>
+  </defs>
+  <rect width="800" height="1000" fill="url(#bg-optical)"/>
+  <circle cx="650" cy="150" r="140" fill="none" stroke="#DDD1B7" stroke-width="2"/>
+  <ellipse cx="400" cy="762" rx="220" ry="30" fill="#DDD1B7" opacity="0.45"/>
+  <circle cx="280" cy="560" r="118" fill="rgba(255,255,255,0.3)" stroke="#2A2621" stroke-width="14"/>
+  <circle cx="520" cy="560" r="118" fill="rgba(255,255,255,0.3)" stroke="#2A2621" stroke-width="14"/>
+  <path d="M396,548 Q400,538 404,548" stroke="#2A2621" stroke-width="14" fill="none" stroke-linecap="round"/>
+  <path d="M162,552 Q110,536 70,500" stroke="#2A2621" stroke-width="14" fill="none" stroke-linecap="round"/>
+  <path d="M638,552 Q690,536 730,500" stroke="#2A2621" stroke-width="14" fill="none" stroke-linecap="round"/>
+</svg>

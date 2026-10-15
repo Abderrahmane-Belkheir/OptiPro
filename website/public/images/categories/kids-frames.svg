@@ -1,0 +1,20 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 800 1000">
+  <defs>
+    <linearGradient id="bg-kids-cat" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#FBF9F4"/>
+      <stop offset="1" stop-color="#EFE1C9"/>
+    </linearGradient>
+  </defs>
+  <rect width="800" height="1000" fill="url(#bg-kids-cat)"/>
+  <circle cx="620" cy="160" r="8" fill="#C9A879"/>
+  <circle cx="662" cy="212" r="5" fill="#C9A879"/>
+  <circle cx="180" cy="182" r="6" fill="#C9A879"/>
+  <ellipse cx="400" cy="700" rx="210" ry="28" fill="#DDD1B7" opacity="0.4"/>
+  <circle cx="300" cy="560" r="90" fill="rgba(217,192,154,0.45)" stroke="#2A2621" stroke-width="20"/>
+  <circle cx="500" cy="560" r="90" fill="rgba(217,192,154,0.45)" stroke="#2A2621" stroke-width="20"/>
+  <path d="M390,550 Q400,542 410,550" stroke="#2A2621" stroke-width="18" fill="none" stroke-linecap="round"/>
+  <path d="M210,546 Q160,534 120,510" stroke="#2A2621" stroke-width="20" fill="none" stroke-linecap="round"/>
+  <path d="M590,546 Q640,534 680,510" stroke="#2A2621" stroke-width="20" fill="none" stroke-linecap="round"/>
+  <circle cx="112" cy="506" r="10" fill="#96744A"/>
+  <circle cx="688" cy="506" r="10" fill="#96744A"/>
+</svg>

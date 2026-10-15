@@ -9,5 +9,6 @@ yarn-error.log*
 .pnp.js
 dist
 website/node_modules
-website/dist
+backend/resources/dist
+backend/node_modules
 .vscode/*

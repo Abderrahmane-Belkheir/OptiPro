@@ -1,0 +1,11 @@
+node_modules
+
+# Frontend build output dropped in by hand — never commit it, see resources/README.md.
+# (** so this also covers deploy/app/resources/dist, not just the top-level one.)
+**/resources/dist
+
+# Holds DATABASE_URL (real DB credentials) — never commit it.
+.env
+
+# Same reasoning as resources/dist above — needs to catch deploy/app/src/generated too.
+**/src/generated/prisma
