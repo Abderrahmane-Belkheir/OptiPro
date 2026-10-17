@@ -1,3 +1,4 @@
+import { Link, useLocation } from 'react-router-dom';
 import { getColorSwatch } from '../../i18n/colorSwatches';
 import { translateColor } from '../../i18n/colorLabels';
 import { useLocale } from '../../i18n/useLocale';
@@ -11,25 +12,34 @@ interface FrameCardProps {
   brandName: string;
 }
 
-/** Display-only: no link, button, or click handler — frames are not interactive yet. */
+/** Links to the frame's detail route, opened as a modal over the current grid (see App.tsx). */
 export function FrameCard({ frame, brandName }: FrameCardProps) {
   const { locale } = useLocale();
   const t = useTranslations();
+  const location = useLocation();
 
   return (
     <article className="group flex flex-col transition-transform duration-500 ease-out hover:-translate-y-1">
-      <div className="aspect-square w-full overflow-hidden bg-paper">
-        {/* The grid view always shows the first image; a frame may have more for a future detail view. */}
+      <Link
+        to={`/frames/${frame.id}`}
+        state={{ background: location }}
+        className="aspect-square w-full overflow-hidden bg-paper"
+      >
+        {/* The grid view always shows the first image; the detail modal shows all of them. */}
         <FadeImage
           src={frame.images[0]}
           alt={`${brandName} ${frame.name}`}
           className="h-full w-full object-cover group-hover:scale-105"
           loading="lazy"
         />
-      </div>
+      </Link>
       <div className="flex flex-1 flex-col gap-1.5 pt-4">
         <span className="text-xs uppercase tracking-[0.14em] text-charcoal-soft">{brandName}</span>
-        <h3 className="font-display text-lg font-medium text-charcoal">{frame.name}</h3>
+        <h3 className="font-display text-lg font-medium text-charcoal">
+          <Link to={`/frames/${frame.id}`} state={{ background: location }} className="hover:text-brass">
+            {frame.name}
+          </Link>
+        </h3>
         <div className="mt-1 flex items-center justify-between gap-2">
           {frame.price !== undefined && (
             <span className="font-medium text-charcoal">

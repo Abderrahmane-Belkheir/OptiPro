@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { apiFrameService } from '../services/frameService';
 import type { Frame } from '../types/frame';
+import { frameCache } from '../utils/itemCache';
 import { resolveAssetUrl } from '../utils/resolveAssetUrl';
 
 /** Keyed by `${categoryId}:${brandId}`, so revisiting a combination already seen this session skips the network call. */
@@ -51,6 +52,7 @@ export function useFrames(categoryId: number | null, brandId: number | null): Us
       .then((result) => {
         const resolved = result.map(resolveFrame);
         framesCache.set(cacheKey, resolved);
+        resolved.forEach((frame) => frameCache.set(frame.id, frame));
         if (isActive) setFrames(resolved);
       })
       .catch(() => {

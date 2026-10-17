@@ -4,6 +4,7 @@ export interface Accessory {
   description: string;
   price?: number;
   currency?: string;
-  imageUrl: string;
+  /** One or more photos; the general grid/card view always shows `images[0]`. */
+  images: string[];
   inStock: boolean;
 }

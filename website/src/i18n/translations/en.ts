@@ -91,4 +91,11 @@ export const en: Translations = {
     followLabel: 'Follow',
     rightsReserved: 'All rights reserved.',
   },
+  itemDetail: {
+    close: 'Close',
+    loading: 'Loading…',
+    error: 'We could not load this item right now.',
+    notFound: "This item couldn't be found.",
+    thumbnailAlt: (name, index) => `${name} — photo ${index + 1}`,
+  },
 };

@@ -67,4 +67,11 @@ export interface Translations {
     followLabel: string;
     rightsReserved: string;
   };
+  itemDetail: {
+    close: string;
+    loading: string;
+    error: string;
+    notFound: string;
+    thumbnailAlt: (name: string, index: number) => string;
+  };
 }

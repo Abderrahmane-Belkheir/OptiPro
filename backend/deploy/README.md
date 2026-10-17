@@ -53,7 +53,15 @@ in `optician-backend.service`'s `WorkingDirectory`.
    sudo chmod +x /etc/letsencrypt/renewal-hooks/deploy/restart-backend.sh
    ```
 7. `DATABASE_URL=... sh migrate.sh` — creates the tables.
-8. `sudo systemctl enable --now optician-backend` — starts it, and on every future boot.
+8. Run `app/prisma/permissions.sql` once as the table-owner role (e.g. the Neon SQL editor), after
+   putting the role from `DATABASE_URL` on its `set_config` line. It creates the `customers` table
+   if missing, adds newer columns to older tables, stops if the shop-management tables (created by
+   `migrate.sh`) are missing, grants that role what the backend needs (reads, plus insert/update/delete on the
+   tenant-owned tables, limited to the tenant's own rows), and turns on the row-level security
+   that isolates tenants.
+   `DATABASE_URL` must be a *different*, non-owner role — owners bypass RLS; the backend warns at
+   startup if it isn't set up.
+9. `sudo systemctl enable --now optician-backend` — starts it, and on every future boot.
 
 ## Every later deploy (schema unchanged)
 

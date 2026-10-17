@@ -4,15 +4,31 @@
   "description": "",
   "main": "dist/main.js",
   "scripts": {
+    "db:generate": "node scripts/generate-db.mjs",
+    "prebuild": "npm run db:generate",
     "build": "tsc",
+    "postbuild": "node scripts/copy-prisma-client.mjs && node scripts/check-sync-parents.mjs",
+    "check:sync-parents": "node scripts/check-sync-parents.mjs",
     "start": "npm run build && electron ."
   },
   "devDependencies": {
-    "electron": "^44.7.0",
+    "@electron/rebuild": "^4.2.1",
+    "@types/better-sqlite3": "^9.6.0",
+    "@types/node": "^26.6.5",
+    "electron": "^42.11.14",
+    "prisma": "^7.10.0",
     "typescript": "^6.0.3"
   },
   "private": true,
   "dependencies": {
-    "@types/node": "^26.6.5"
+    "@prisma/adapter-better-sqlite3": "^7.10.1",
+    "@prisma/client": "^7.10.0",
+    "better-sqlite3": "^12.11.1",
+    "dotenv": "^18.0.8"
+  },
+  "allowScripts": {
+    "prisma@7.10.0": true,
+    "@prisma/engines@7.10.0": true,
+    "better-sqlite3@12.11.1": true
   }
 }

@@ -12,3 +12,14 @@ website/node_modules
 backend/resources/dist
 backend/node_modules
 .vscode/*
+
+# Local overrides (e.g. SQLITE_DATABASE_URL) — never commit it.
+.env
+
+# Derived from prisma/sqlite/schema.prisma by `npm run db:generate` (which `npm run build` runs first)
+# — not source, never edit by hand.
+src/generated/sqlite-client
+prisma/sqlite/init.sql
+
+# Local SQLite data file (see prisma/sqlite/) — runtime data, not source.
+local.db

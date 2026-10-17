@@ -1,10 +1,173 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-    <meta charset="UTF-8">
-    <title>My Electron App</title>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <!-- The page only ever loads its own files: no network, no inline script or style. -->
+  <meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'self'; style-src 'self'; img-src 'self' data:; font-src 'self'">
+  <title>Dashboard · Maison Clair</title>
+  <link rel="stylesheet" href="styles/fonts.css">
+  <link rel="stylesheet" href="styles/tokens.css">
+  <link rel="stylesheet" href="styles/global.css">
+  <link rel="stylesheet" href="styles/shell.css">
 </head>
 <body>
-<h1>Hello Electron + TypeScript!</h1>
+  <!-- Icon sprite (Lucide, ISC licence): <svg class="icon"><use href="#i-name"/></svg> -->
+  <svg class="sprite" aria-hidden="true" focusable="false">
+    <symbol id="i-lens" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9.25"/><path d="M6.9 12.4 12.4 6.9"/><path d="M6.9 16.1 16.1 6.9"/></symbol>
+    <symbol id="i-dashboard" viewBox="0 0 24 24"><rect width="7" height="9" x="3" y="3" rx="1"/><rect width="7" height="5" x="14" y="3" rx="1"/><rect width="7" height="9" x="14" y="12" rx="1"/><rect width="7" height="5" x="3" y="16" rx="1"/></symbol>
+    <symbol id="i-inventory" viewBox="0 0 24 24"><path d="M11 21.73a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73z"/><path d="M12 22V12"/><polyline points="3.29 7 12 12 20.71 7"/><path d="m7.5 4.27 9 5.15"/></symbol>
+    <symbol id="i-customers" viewBox="0 0 24 24"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><path d="M16 3.128a4 4 0 0 1 0 7.744"/><path d="M22 21v-2a4 4 0 0 0-3-3.87"/><circle cx="9" cy="7" r="4"/></symbol>
+    <symbol id="i-sales" viewBox="0 0 24 24"><path d="M13 16H8"/><path d="M14 8H8"/><path d="M16 12H8"/><path d="M4 3a1 1 0 0 1 1-1 1.3 1.3 0 0 1 .7.2l.933.6a1.3 1.3 0 0 0 1.4 0l.934-.6a1.3 1.3 0 0 1 1.4 0l.933.6a1.3 1.3 0 0 0 1.4 0l.933-.6a1.3 1.3 0 0 1 1.4 0l.934.6a1.3 1.3 0 0 0 1.4 0l.933-.6A1.3 1.3 0 0 1 19 2a1 1 0 0 1 1 1v18a1 1 0 0 1-1 1 1.3 1.3 0 0 1-.7-.2l-.933-.6a1.3 1.3 0 0 0-1.4 0l-.934.6a1.3 1.3 0 0 1-1.4 0l-.933-.6a1.3 1.3 0 0 0-1.4 0l-.933.6a1.3 1.3 0 0 1-1.4 0l-.934-.6a1.3 1.3 0 0 0-1.4 0l-.933.6a1.3 1.3 0 0 1-.7.2 1 1 0 0 1-1-1z"/></symbol>
+    <symbol id="i-suppliers" viewBox="0 0 24 24"><path d="M14 18V6a2 2 0 0 0-2-2H4a2 2 0 0 0-2 2v11a1 1 0 0 0 1 1h2"/><path d="M15 18H9"/><path d="M19 18h2a1 1 0 0 0 1-1v-3.65a1 1 0 0 0-.22-.624l-3.48-4.35A1 1 0 0 0 17.52 8H14"/><circle cx="17" cy="18" r="2"/><circle cx="7" cy="18" r="2"/></symbol>
+    <symbol id="i-reports" viewBox="0 0 24 24"><path d="M3 3v16a2 2 0 0 0 2 2h16"/><path d="M18 17V9"/><path d="M13 17V5"/><path d="M8 17v-3"/></symbol>
+    <symbol id="i-settings" viewBox="0 0 24 24"><path d="M9.671 4.136a2.34 2.34 0 0 1 4.659 0 2.34 2.34 0 0 0 3.319 1.915 2.34 2.34 0 0 1 2.33 4.033 2.34 2.34 0 0 0 0 3.831 2.34 2.34 0 0 1-2.33 4.033 2.34 2.34 0 0 0-3.319 1.915 2.34 2.34 0 0 1-4.659 0 2.34 2.34 0 0 0-3.32-1.915 2.34 2.34 0 0 1-2.33-4.033 2.34 2.34 0 0 0 0-3.831A2.34 2.34 0 0 1 6.35 6.051a2.34 2.34 0 0 0 3.319-1.915"/><circle cx="12" cy="12" r="3"/></symbol>
+    <symbol id="i-chevron" viewBox="0 0 24 24"><path d="m6 9 6 6 6-6"/></symbol>
+    <symbol id="i-sidebar-close" viewBox="0 0 24 24"><rect width="18" height="18" x="3" y="3" rx="2"/><path d="M9 3v18"/><path d="m16 15-3-3 3-3"/></symbol>
+    <symbol id="i-sidebar-open" viewBox="0 0 24 24"><rect width="18" height="18" x="3" y="3" rx="2"/><path d="M9 3v18"/><path d="m14 9 3 3-3 3"/></symbol>
+    <symbol id="i-search" viewBox="0 0 24 24"><path d="m21 21-4.34-4.34"/><circle cx="11" cy="11" r="8"/></symbol>
+    <symbol id="i-bell" viewBox="0 0 24 24"><path d="M10.268 21a2 2 0 0 0 3.464 0"/><path d="M3.262 15.326A1 1 0 0 0 4 17h16a1 1 0 0 0 .74-1.673C19.41 13.956 18 12.499 18 8A6 6 0 0 0 6 8c0 4.499-1.411 5.956-2.738 7.326"/></symbol>
+    <symbol id="i-user" viewBox="0 0 24 24"><circle cx="12" cy="8" r="5"/><path d="M20 21a8 8 0 0 0-16 0"/></symbol>
+    <symbol id="i-profile" viewBox="0 0 24 24"><path d="M17.925 20.056a6 6 0 0 0-11.851.001"/><circle cx="12" cy="11" r="4"/><circle cx="12" cy="12" r="10"/></symbol>
+    <symbol id="i-preferences" viewBox="0 0 24 24"><path d="M10 5H3"/><path d="M12 19H3"/><path d="M14 3v4"/><path d="M16 17v4"/><path d="M21 12h-9"/><path d="M21 19h-5"/><path d="M21 5h-7"/><path d="M8 10v4"/><path d="M8 12H3"/></symbol>
+    <symbol id="i-sign-out" viewBox="0 0 24 24"><path d="m16 17 5-5-5-5"/><path d="M21 12H9"/><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/></symbol>
+  </svg>
+
+  <div class="app" data-sidebar="expanded">
+    <a class="skip-link" href="#content">Skip to content</a>
+
+    <aside class="sidebar" aria-label="Sidebar">
+      <div class="sidebar__brand">
+        <span class="brand-mark" aria-hidden="true"><svg class="icon"><use href="#i-lens"/></svg></span>
+        <span class="brand-text">
+          <span class="brand-name">Maison Clair</span>
+          <span class="brand-caption">Optical Management</span>
+        </span>
+      </div>
+
+      <nav class="sidebar__nav" aria-label="Main">
+        <div class="nav-group">
+          <ul class="nav-list">
+            <li>
+              <a class="nav-item" href="#dashboard" data-page="dashboard" data-eyebrow="Overview" aria-current="page">
+                <svg class="icon" aria-hidden="true"><use href="#i-dashboard"/></svg>
+                <span class="nav-item__label">Dashboard</span>
+              </a>
+            </li>
+          </ul>
+        </div>
+
+        <div class="nav-group">
+          <p class="nav-group__label" id="nav-store">Store</p>
+          <ul class="nav-list" aria-labelledby="nav-store">
+            <li>
+              <a class="nav-item" href="#inventory" data-page="inventory" data-eyebrow="Store">
+                <svg class="icon" aria-hidden="true"><use href="#i-inventory"/></svg>
+                <span class="nav-item__label">Inventory</span>
+              <svg class="icon nav-item__chevron" aria-hidden="true"><use href="#i-chevron"/></svg>
+              </a>
+            </li>
+            <li>
+              <a class="nav-item" href="#customers" data-page="customers" data-eyebrow="Store">
+                <svg class="icon" aria-hidden="true"><use href="#i-customers"/></svg>
+                <span class="nav-item__label">Customers</span>
+              </a>
+            </li>
+            <li>
+              <a class="nav-item" href="#sales" data-page="sales" data-eyebrow="Store">
+                <svg class="icon" aria-hidden="true"><use href="#i-sales"/></svg>
+                <span class="nav-item__label">Sales</span>
+              </a>
+            </li>
+            <li>
+              <a class="nav-item" href="#suppliers" data-page="suppliers" data-eyebrow="Store">
+                <svg class="icon" aria-hidden="true"><use href="#i-suppliers"/></svg>
+                <span class="nav-item__label">Suppliers</span>
+              </a>
+            </li>
+          </ul>
+        </div>
+
+        <div class="nav-group">
+          <p class="nav-group__label" id="nav-insights">Insights</p>
+          <ul class="nav-list" aria-labelledby="nav-insights">
+            <li>
+              <a class="nav-item" href="#reports" data-page="reports" data-eyebrow="Insights">
+                <svg class="icon" aria-hidden="true"><use href="#i-reports"/></svg>
+                <span class="nav-item__label">Reports</span>
+              </a>
+            </li>
+          </ul>
+        </div>
+
+        <div class="nav-group nav-group--end">
+          <ul class="nav-list">
+            <li>
+              <a class="nav-item" href="#settings" data-page="settings" data-eyebrow="System">
+                <svg class="icon" aria-hidden="true"><use href="#i-settings"/></svg>
+                <span class="nav-item__label">Settings</span>
+              </a>
+            </li>
+          </ul>
+        </div>
+      </nav>
+
+      <div class="sidebar__footer">
+        <button class="nav-item" id="sidebar-toggle" type="button" aria-expanded="true" aria-label="Collapse sidebar">
+          <svg class="icon" aria-hidden="true"><use href="#i-sidebar-close"/></svg>
+          <span class="nav-item__label">Collapse</span>
+        </button>
+      </div>
+    </aside>
+
+    <div class="workspace">
+      <header class="topbar">
+        <div class="topbar__heading">
+          <p class="topbar__eyebrow" id="page-eyebrow">Overview</p>
+          <h1 class="topbar__title" id="page-title">Dashboard</h1>
+        </div>
+
+        <div class="topbar__actions">
+          <form class="search" role="search">
+            <svg class="icon" aria-hidden="true"><use href="#i-search"/></svg>
+            <input class="search__input" type="search" name="q" placeholder="Search" aria-label="Search" autocomplete="off">
+          </form>
+
+          <span class="topbar__separator" aria-hidden="true"></span>
+
+          <button class="icon-button" type="button" aria-label="Notifications">
+            <svg class="icon" aria-hidden="true"><use href="#i-bell"/></svg>
+          </button>
+
+          <span class="topbar__separator" aria-hidden="true"></span>
+
+          <div class="profile">
+            <button class="profile__button" id="profile-button" type="button" aria-label="Account menu" aria-haspopup="menu" aria-expanded="false" aria-controls="profile-menu">
+              <span class="avatar" aria-hidden="true"><svg class="icon"><use href="#i-user"/></svg></span>
+              <svg class="icon icon-chevron" aria-hidden="true"><use href="#i-chevron"/></svg>
+            </button>
+            <div class="menu" id="profile-menu" role="menu" aria-labelledby="profile-button" hidden>
+              <p class="menu__label" aria-hidden="true">Account</p>
+              <button class="menu__item" type="button" role="menuitem">
+                <svg class="icon" aria-hidden="true"><use href="#i-profile"/></svg>Profile
+              </button>
+              <button class="menu__item" type="button" role="menuitem">
+                <svg class="icon" aria-hidden="true"><use href="#i-preferences"/></svg>Preferences
+              </button>
+              <div class="menu__separator" role="separator"></div>
+              <button class="menu__item" type="button" role="menuitem">
+                <svg class="icon" aria-hidden="true"><use href="#i-sign-out"/></svg>Sign out
+              </button>
+            </div>
+          </div>
+        </div>
+      </header>
+
+      <!-- Intentionally empty: pages are added here later. -->
+      <main class="content" id="content" tabindex="-1"></main>
+    </div>
+  </div>
+
+  <script src="shell.js"></script>
 </body>
 </html>

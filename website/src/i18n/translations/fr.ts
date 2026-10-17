@@ -93,4 +93,11 @@ export const fr: Translations = {
     followLabel: 'Nous Suivre',
     rightsReserved: 'Tous droits réservés.',
   },
+  itemDetail: {
+    close: 'Fermer',
+    loading: 'Chargement…',
+    error: "Nous n'avons pas pu charger cet article pour le moment.",
+    notFound: 'Cet article est introuvable.',
+    thumbnailAlt: (name, index) => `${name} — photo ${index + 1}`,
+  },
 };

@@ -1,9 +1,9 @@
 import { prisma } from '../lib/prismaClient.js';
 
 export async function getSiteInfo(host) {
-  const tenant = await prisma.tenant.findUnique({ where: { host } });
-  if (!tenant) return null;
 
+  const tenant = await prisma.tenant.findUnique({ where: { host } });
+  if(!tenant) return null
   return {
     name: tenant.name,
     social: [

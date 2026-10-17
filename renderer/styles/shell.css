@@ -1,0 +1,559 @@
+/*
+ * The application shell: sidebar, top bar and the (empty) content area.
+ * Layout and shell components only — every value comes from tokens.css.
+ *
+ * Composition
+ *   The window is a dark ink frame. The sidebar sits directly on it; the workspace is a light panel
+ *   inset into it, with rounded corners, so the two halves read as one object.
+ *
+ *   .app
+ *     .sidebar     brand · grouped navigation · collapse toggle     (on the dark frame)
+ *     .workspace                                                     (the light panel)
+ *       .topbar    eyebrow + page title · search · notifications · profile menu
+ *       .content   the empty main area that pages will fill
+ */
+
+.app {
+  display: grid;
+  grid-template-columns: var(--sidebar-width) minmax(0, 1fr);
+  height: 100%;
+  background: var(--color-ink);
+  transition: grid-template-columns var(--duration) var(--ease);
+}
+
+.app[data-sidebar="collapsed"] {
+  grid-template-columns: var(--sidebar-width-collapsed) minmax(0, 1fr);
+}
+
+.workspace {
+  display: grid;
+  grid-template-rows: var(--topbar-height) minmax(0, 1fr);
+  min-width: 0;
+  min-height: 0;
+  margin: var(--frame-gap) var(--frame-gap) var(--frame-gap) 0;
+  overflow: hidden;
+  border-radius: var(--radius-panel);
+  background: var(--color-canvas);
+}
+
+/* ---- Skip link ------------------------------------------------------------------------------ */
+
+.skip-link {
+  position: absolute;
+  top: calc(var(--space-8) * -2);
+  left: var(--space-3);
+  z-index: 100;
+  padding: var(--space-2) var(--space-3);
+  border-radius: var(--radius-md);
+  background: var(--color-brass-soft);
+  color: var(--color-ink);
+  font-size: var(--text-sm);
+  font-weight: var(--weight-bold);
+}
+
+.skip-link:focus {
+  top: var(--space-3);
+}
+
+/* ---- Sidebar -------------------------------------------------------------------------------- */
+
+.sidebar {
+  /* On the dark frame, keyboard focus is brass. */
+  --color-focus: var(--color-brass-soft);
+
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  min-height: 0;
+  overflow: hidden; /* labels are clipped, not wrapped, while the sidebar animates */
+  color: var(--color-on-ink);
+}
+
+/* Level with the top bar's content: it is as tall as the bar plus the frame margin above it. */
+.sidebar__brand {
+  display: flex;
+  flex: none;
+  align-items: center;
+  gap: var(--space-3);
+  height: calc(var(--topbar-height) + var(--frame-gap));
+  padding: var(--frame-gap) var(--space-4) 0 var(--space-5);
+}
+
+.brand-mark {
+  display: grid;
+  flex: none;
+  place-items: center;
+  width: 36px;
+  height: 36px;
+  border: 1px solid rgb(217 192 154 / 0.3);
+  border-radius: var(--radius-md);
+  background: rgb(217 192 154 / 0.1);
+  color: var(--color-brass-soft);
+}
+
+.brand-mark .icon {
+  width: 22px;
+  height: 22px;
+  stroke-width: 1.5;
+}
+
+.brand-text {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  min-width: 0;
+}
+
+.brand-name {
+  overflow: hidden;
+  font-family: var(--font-display);
+  font-size: var(--text-brand);
+  font-weight: var(--weight-medium);
+  line-height: 1;
+  letter-spacing: -0.01em;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.brand-caption {
+  overflow: hidden;
+  color: var(--color-on-ink-muted);
+  font-size: 9.5px;
+  font-weight: var(--weight-bold);
+  letter-spacing: 0.18em;
+  line-height: 1;
+  text-overflow: ellipsis;
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+
+.sidebar__nav {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  gap: var(--space-5);
+  min-height: 0;
+  padding: var(--space-2) 14px var(--space-3);
+  overflow-y: auto;
+  scrollbar-color: rgb(246 241 231 / 0.2) transparent;
+}
+
+.sidebar__nav::-webkit-scrollbar-thumb {
+  background: rgb(246 241 231 / 0.2);
+  background-clip: content-box;
+}
+
+.nav-group {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+/* Settings sits at the foot of the navigation, set off by a hairline. */
+.nav-group--end {
+  margin-top: auto;
+  padding-top: var(--space-3);
+  border-top: 1px solid var(--color-on-ink-line);
+}
+
+.nav-group__label {
+  padding: 0 var(--space-3) var(--space-2);
+  color: var(--color-on-ink-muted);
+  font-size: var(--text-2xs);
+  font-weight: var(--weight-bold);
+  letter-spacing: var(--tracking-caps);
+  text-transform: uppercase;
+}
+
+.nav-list {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+/* Settings and the collapse control form one quiet cluster at the foot of the sidebar. */
+.sidebar__footer {
+  flex: none;
+  padding: 0 14px var(--space-4);
+}
+
+.sidebar__footer .nav-item {
+  color: var(--color-on-ink-muted);
+}
+
+.sidebar__footer .nav-item:hover {
+  color: var(--color-on-ink);
+}
+
+/* A navigation entry: used for links and for the collapse button so they look identical. */
+.nav-item {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  width: 100%;
+  height: 40px;
+  padding: 0 var(--space-3);
+  border-radius: var(--radius-md);
+  color: var(--color-on-ink-secondary);
+  font-size: var(--text-base);
+  font-weight: var(--weight-semibold);
+  text-align: left;
+  white-space: nowrap;
+  transition:
+    background-color var(--duration-fast) var(--ease),
+    color var(--duration-fast) var(--ease),
+    box-shadow var(--duration-fast) var(--ease);
+}
+
+.nav-item:hover {
+  background: var(--color-on-ink-hover);
+  color: var(--color-on-ink);
+}
+
+.nav-item:active {
+  background: var(--color-on-ink-pressed);
+}
+
+/* Inside the clipped sidebar the focus ring is drawn inward so it can't be cut off. */
+.nav-item:focus-visible {
+  outline-offset: -2px;
+}
+
+.nav-item[aria-current="page"] {
+  background: var(--color-on-ink-active);
+  box-shadow: inset 0 0 0 1px var(--color-on-ink-active-line);
+  color: var(--color-on-ink);
+  font-weight: var(--weight-bold);
+}
+
+.nav-item[aria-current="page"] .icon {
+  color: var(--color-brass-soft);
+}
+
+/* The active marker: a brass blade on the sidebar's left edge, with a faint glow. */
+.nav-item[aria-current="page"]::before {
+  content: "";
+  position: absolute;
+  top: 10px;
+  bottom: 10px;
+  left: -14px;
+  width: 3px;
+  border-radius: 0 3px 3px 0;
+  background: var(--color-brass-soft);
+  box-shadow: var(--shadow-glow);
+}
+
+.nav-item__label {
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* Hints at the sub-navigation that Inventory will get; not interactive yet. */
+.nav-item__chevron {
+  width: 14px;
+  height: 14px;
+  color: var(--color-on-ink-muted);
+}
+
+/* ---- Collapsed sidebar: icons only ---------------------------------------------------------- */
+
+.app[data-sidebar="collapsed"] .sidebar__brand {
+  justify-content: center;
+  padding-inline: 0;
+}
+
+.app[data-sidebar="collapsed"] .nav-item {
+  justify-content: center;
+  padding: 0;
+}
+
+.app[data-sidebar="collapsed"] .nav-item__chevron {
+  display: none;
+}
+
+/* The words stay available to screen readers; they just aren't drawn. */
+.app[data-sidebar="collapsed"] .brand-text,
+.app[data-sidebar="collapsed"] .nav-item__label {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  margin: -1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+}
+
+/* A group label becomes a hairline, so the groups stay distinct without words. */
+.app[data-sidebar="collapsed"] .nav-group__label {
+  height: 1px;
+  margin: var(--space-1) var(--space-3) var(--space-2);
+  padding: 0;
+  overflow: hidden;
+  background: var(--color-on-ink-line);
+  font-size: 0;
+}
+
+/* ---- Top bar -------------------------------------------------------------------------------- */
+
+.topbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-4);
+  min-width: 0;
+  padding: 0 var(--space-6) 0 var(--content-padding); /* the title lines up with the page content below */
+  border-bottom: 1px solid var(--color-border);
+  background: var(--color-surface);
+}
+
+.topbar__heading {
+  display: flex;
+  flex-direction: column;
+  gap: 7px;
+  min-width: 0;
+}
+
+/* Which part of the application the page belongs to (the navigation group). */
+.topbar__eyebrow {
+  color: var(--color-brass-strong);
+  font-size: var(--text-2xs);
+  font-weight: var(--weight-bold);
+  letter-spacing: var(--tracking-caps);
+  line-height: 1;
+  text-transform: uppercase;
+}
+
+.topbar__title {
+  overflow: hidden;
+  font-family: var(--font-display);
+  font-size: var(--text-title);
+  font-weight: var(--weight-medium);
+  letter-spacing: -0.015em;
+  line-height: 1.1;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.topbar__actions {
+  display: flex;
+  flex: none;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.topbar__separator {
+  width: 1px;
+  height: 22px;
+  margin-inline: var(--space-1);
+  background: var(--color-border);
+}
+
+/* Search: a compact field that narrows with the window. Visual only for now. */
+.search {
+  position: relative;
+  display: flex;
+  align-items: center;
+  width: clamp(160px, 22vw, 290px);
+}
+
+.search .icon {
+  position: absolute;
+  left: 12px;
+  width: 16px;
+  height: 16px;
+  color: var(--color-text-muted);
+  pointer-events: none;
+  transition: color var(--duration-fast) var(--ease);
+}
+
+.search:focus-within .icon {
+  color: var(--color-text);
+}
+
+.search__input {
+  width: 100%;
+  height: 38px;
+  padding: 0 var(--space-3) 0 36px;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  background: var(--color-canvas);
+  font-size: var(--text-sm);
+  transition:
+    border-color var(--duration-fast) var(--ease),
+    background-color var(--duration-fast) var(--ease),
+    box-shadow var(--duration-fast) var(--ease);
+}
+
+.search__input::placeholder {
+  color: var(--color-text-muted);
+}
+
+.search__input::-webkit-search-cancel-button {
+  appearance: none;
+}
+
+.search__input:hover {
+  border-color: var(--color-border-strong);
+}
+
+.search__input:focus-visible {
+  border-color: var(--color-ink);
+  background: var(--color-surface);
+  box-shadow: 0 0 0 4px rgb(21 19 15 / 0.07);
+  outline: none;
+}
+
+.icon-button {
+  display: grid;
+  place-items: center;
+  width: 38px;
+  height: 38px;
+  border-radius: var(--radius-md);
+  color: var(--color-text-secondary);
+  transition:
+    background-color var(--duration-fast) var(--ease),
+    color var(--duration-fast) var(--ease);
+}
+
+.icon-button:hover {
+  background: var(--color-surface-hover);
+  color: var(--color-text);
+}
+
+.icon-button:active {
+  background: var(--color-surface-pressed);
+}
+
+/* ---- Profile menu --------------------------------------------------------------------------- */
+
+.profile {
+  position: relative;
+}
+
+.profile__button {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  height: 38px;
+  padding: 0 var(--space-2) 0 var(--space-1);
+  border-radius: var(--radius-full);
+  color: var(--color-text-muted);
+  transition: background-color var(--duration-fast) var(--ease);
+}
+
+.profile__button:hover,
+.profile__button[aria-expanded="true"] {
+  background: var(--color-surface-hover);
+}
+
+.profile__button .icon-chevron {
+  width: 14px;
+  height: 14px;
+  transition: transform var(--duration) var(--ease);
+}
+
+.profile__button[aria-expanded="true"] .icon-chevron {
+  transform: rotate(180deg);
+}
+
+/* The avatar echoes the sidebar: ink with a brass figure. */
+.avatar {
+  display: grid;
+  flex: none;
+  place-items: center;
+  width: 32px;
+  height: 32px;
+  border-radius: var(--radius-full);
+  background: var(--color-ink);
+  box-shadow: 0 0 0 2px var(--color-surface), 0 0 0 3px var(--color-border-strong);
+  color: var(--color-brass-soft);
+}
+
+.avatar .icon {
+  width: 16px;
+  height: 16px;
+}
+
+.menu {
+  position: absolute;
+  top: calc(100% + 8px);
+  right: 0;
+  z-index: 50;
+  min-width: 220px;
+  padding: var(--space-1);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-lg);
+  background: var(--color-surface);
+  box-shadow: var(--shadow-menu);
+  transform-origin: top right;
+  animation: menu-in var(--duration-fast) var(--ease);
+}
+
+.menu[hidden] {
+  display: none;
+}
+
+@keyframes menu-in {
+  from {
+    opacity: 0;
+    transform: translateY(-4px) scale(0.98);
+  }
+}
+
+.menu__label {
+  padding: var(--space-2) var(--space-3) 6px;
+  color: var(--color-brass-strong);
+  font-size: var(--text-2xs);
+  font-weight: var(--weight-bold);
+  letter-spacing: var(--tracking-caps);
+  text-transform: uppercase;
+}
+
+.menu__item {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  width: 100%;
+  height: 36px;
+  padding: 0 var(--space-3);
+  border-radius: var(--radius-sm);
+  font-size: var(--text-base);
+  font-weight: var(--weight-semibold);
+  text-align: left;
+  transition: background-color var(--duration-fast) var(--ease);
+}
+
+.menu__item .icon {
+  color: var(--color-text-muted);
+}
+
+.menu__item:hover,
+.menu__item:focus-visible {
+  background: var(--color-surface-hover);
+}
+
+.menu__item:focus-visible {
+  outline-offset: -2px;
+}
+
+.menu__separator {
+  height: 1px;
+  margin: var(--space-1) calc(var(--space-1) * -1);
+  background: var(--color-border);
+}
+
+/* ---- Content area --------------------------------------------------------------------------- */
+
+/* Deliberately empty: it only supplies the padding, background and scrolling that pages will use. */
+.content {
+  min-width: 0;
+  min-height: 0;
+  padding: var(--content-padding);
+  overflow: auto;
+  background: var(--color-canvas);
+}
+
+.content:focus {
+  outline: none;
+}

@@ -6,10 +6,13 @@ import https from 'node:https';
 import net from 'node:net';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { getAccessories } from './services/accessoryService.js';
+import { authorize } from './lib/authorization.js';
+import { warnIfRlsDisabled } from './lib/tenantContext.js';
+import { getAccessories, getAccessoryById } from './services/accessoryService.js';
 import { getCatalog } from './services/catalogService.js';
-import { getFrames } from './services/frameService.js';
+import { getFrameById, getFrames } from './services/frameService.js';
 import { getSiteInfo } from './services/siteInfoService.js';
+import { deleteRow, getTableNames, getTableRows, upsertRows, isWritable } from './services/tableService.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const publicDir = path.join(__dirname, '..', 'public');
@@ -47,13 +50,34 @@ app.get('/api/frames', async (req, res) => {
   res.json(await getFrames({ host: req.hostname, brandId, categoryId }));
 });
 
+// GET /api/frames/:id -> { id, name, brand, category, price?, currency?, images: string[], shape?, colors?, inStock } (404 if not found)
+// Only needed when a frame's link is opened directly, before the list that contains it was loaded.
+app.get('/api/frames/:id', async (req, res) => {
+  const frame = await getFrameById(req.hostname, req.params.id);
+  if (!frame) {
+    res.status(404).json({ error: `No frame "${req.params.id}" found.` });
+    return;
+  }
+  res.json(frame);
+});
 
-// GET /api/accessories -> { id, name, description, price?, currency?, imageUrl, inStock }[]
+// GET /api/accessories -> { id, name, description, price?, currency?, images: string[], inStock }[]
 app.get('/api/accessories', async (req, res) => {
   res.json(await getAccessories(req.hostname));
 });
 
-// GET /api/infos -> { social: { label, url }[], contact: { address, phone, email } }
+// GET /api/accessories/:id -> { id, name, description, price?, currency?, images: string[], inStock } (404 if not found)
+// Only needed when an accessory's link is opened directly, before the list that contains it was loaded.
+app.get('/api/accessories/:id', async (req, res) => {
+  const accessory = await getAccessoryById(req.hostname, req.params.id);
+  if (!accessory) {
+    res.status(404).json({ error: `No accessory "${req.params.id}" found.` });
+    return;
+  }
+  res.json(accessory);
+});
+
+// GET /api/infos -> { name, social: { label, url }[], contact: { address, phone, email } }
 app.get('/api/infos', async (req, res) => {
   const siteInfo = await getSiteInfo(req.hostname);
   if (!siteInfo) {
@@ -61,6 +85,81 @@ app.get('/api/infos', async (req, res) => {
     return;
   }
   res.json(siteInfo);
+});
+
+// The Authorization header is the tenant's key. 404 (with code INVALID_TENANT_KEY, so the desktop
+// client can tell it from a missing row) if it's missing, empty or no tenant has that key.
+// Runs before anything else on the route — including body parsing and the table-name check — so an
+// unauthenticated caller can neither probe which tables exist nor get a body-validation error.
+// Tenant scoping comes from this key, never from the request's host.
+const INVALID_TENANT_KEY = 'INVALID_TENANT_KEY';
+
+async function requireTenantKey(req, res, next) {
+  const authorization = req.headers.authorization;
+  if (!authorization) {
+    res.status(404).json({ error: 'Missing Authorization header.', code: INVALID_TENANT_KEY });
+    return;
+  }
+  const tenantKey = await authorize(authorization);
+  if (!tenantKey) {
+    res.status(404).json({ error: 'Invalid Authorization key.', code: INVALID_TENANT_KEY });
+    return;
+  }
+  req.tenantKey = tenantKey;
+  next();
+}
+
+// GET /api/tables/:table -> every row of that table the tenant can see (404 if the table isn't one
+// this app manages). Row visibility is Postgres row-level security, see lib/tenantContext.js.
+app.get('/api/tables/:table', requireTenantKey, async (req, res) => {
+  const rows = await getTableRows(req.tenantKey, req.params.table);
+  if (!rows) {
+    res.status(404).json({ error: `No table "${req.params.table}" available.` });
+    return;
+  }
+  res.json(rows);
+});
+
+// POST /api/tables/:table -> upserts a row (JSON object) or several (JSON array, all-or-nothing)
+// as the authorized tenant: a row whose id matches one of the tenant's rows updates it (only the
+// fields sent), any other is inserted. Responds 201 with the saved row(s) when every row was new,
+// 200 when at least one was an update. Only tenant-owned tables
+// (brands, frames, accessories, customers): 405 for categories and tenants, 404 for anything else.
+// 400/409 for bad or duplicate rows. The tenant of every row is forced to the key's; RLS is the
+// backstop.
+app.post('/api/tables/:table', requireTenantKey, express.json({ limit: '1mb' }), async (req, res) => {
+  const { table } = req.params;
+  if (!getTableNames().includes(table)) {
+    res.status(404).json({ error: `No table "${table}" available.` });
+    return;
+  }
+  if (!isWritable(table)) {
+    res.set('Allow', 'GET').status(405).json({ error: `Table "${table}" is read-only.` });
+    return;
+  }
+  const { rows, created } = await upsertRows(req.tenantKey, table, req.body);
+  res.status(created ? 201 : 200).json(rows);
+});
+
+// DELETE /api/tables/:table/:id -> deletes that row and responds 204. Same table rules as POST
+// (405 for categories/tenants, 404 for an unknown table). 404 if the tenant has no such row —
+// RLS hides other tenants' rows, so someone else's id is a 404 too — and 409 if other rows still
+// reference it (e.g. a brand that has frames).
+app.delete('/api/tables/:table/:id', requireTenantKey, async (req, res) => {
+  const { table, id } = req.params;
+  if (!getTableNames().includes(table)) {
+    res.status(404).json({ error: `No table "${table}" available.` });
+    return;
+  }
+  if (!isWritable(table)) {
+    res.set('Allow', 'GET').status(405).json({ error: `Table "${table}" is read-only.` });
+    return;
+  }
+  if (!(await deleteRow(req.tenantKey, table, id))) {
+    res.status(404).json({ error: `No row "${id}" in "${table}".` });
+    return;
+  }
+  res.status(204).end();
 });
 
 // Serves this API's own assets (the frame/accessory photos referenced by /images/... paths
@@ -95,15 +194,24 @@ app.use((req, res) => {
 });
 
 // Catches errors thrown or rejected anywhere above (Express 5 forwards async route-handler
-// rejections here automatically). Logs the real error server-side but never leaks it to the
-// client — must be registered last so it sees errors from every route before it.
+// rejections here automatically) — must be registered last so it sees errors from every route
+// before it. Client errors that opted in with `expose` (bad JSON bodies, rejected insert rows) are
+// passed through with their own status and message; anything else is logged server-side and
+// answered with a generic 500, never leaking internals.
 app.use((err, _req, res, _next) => {
+  if (!res.headersSent && err.expose && err.status >= 400 && err.status < 500) {
+    res.status(err.status).json({ error: err.message });
+    return;
+  }
   console.error(err);
   if (res.headersSent) {
     return;
   }
   res.status(500).json({ error: 'Internal server error.' });
 });
+
+// Not awaited: it only logs, and must never hold up (or take down) startup.
+warnIfRlsDisabled();
 
 // With SSL_KEY_PATH/SSL_CERT_PATH set, Node terminates TLS itself — no nginx or other reverse
 // proxy in front. A plain HTTP server still listens on HTTP_PORT (default 80), but only to serve

@@ -7,7 +7,10 @@
   "main": "src/server.js",
   "scripts": {
     "start": "node src/server.js",
-    "dev": "node --watch src/server.js"
+    "dev": "node --watch src/server.js",
+    "seed": "node scripts/seed.mjs",
+    "seed:drop": "node scripts/seed.mjs --drop",
+    "check:references": "node scripts/check-references.mjs"
   },
   "license": "ISC",
   "dependencies": {

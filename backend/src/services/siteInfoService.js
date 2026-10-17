@@ -1,22 +1,9 @@
 import { prisma } from '../lib/prismaClient.js';
 
 export async function getSiteInfo(host) {
-  return {
-  name: "Maison clair",
-      social: [
-    "",
-    "",
-  ],
-      contact: {
-    address: "231 hai el badr",
-        phone: "0553702233",
-        email: "belkheirabdou32@gmail.com",
-  },
-};
+
   const tenant = await prisma.tenant.findUnique({ where: { host } });
-
-
-
+  if(!tenant) return null
   return {
     name: tenant.name,
     social: [

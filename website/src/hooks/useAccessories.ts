@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { apiAccessoryService } from '../services/accessoryService';
 import type { Accessory } from '../types/accessory';
+import { accessoryCache } from '../utils/itemCache';
 import { resolveAssetUrl } from '../utils/resolveAssetUrl';
 
 interface UseAccessoriesResult {
@@ -30,8 +31,9 @@ export function useAccessories(shouldFetch: boolean): UseAccessoriesResult {
       .then((result) => {
         const resolved = result.map((accessory) => ({
           ...accessory,
-          imageUrl: resolveAssetUrl(accessory.imageUrl) ?? accessory.imageUrl,
+          images: accessory.images.map((url) => resolveAssetUrl(url) ?? url),
         }));
+        resolved.forEach((accessory) => accessoryCache.set(accessory.id, accessory));
         if (isActive) setAccessories(resolved);
       })
       .catch(() => {

@@ -1,0 +1,99 @@
+/*
+ * Design tokens — the only place raw colours, sizes and timings are defined. Everything else
+ * (global.css, shell.css, and every page added later) refers to these variables, so the look of
+ * the whole application can be tuned here.
+ *
+ * The palette is the storefront's: warm ink, ivory and brass. Two surfaces exist side by side:
+ *   - the "frame" (sidebar and window edge) is dark ink, with ivory text and a brass highlight;
+ *   - the "workspace" (top bar, menus and pages) is light, with ink text.
+ * Colours named *-on-ink are meant for the dark frame only.
+ */
+
+:root {
+  color-scheme: light;
+
+  /* ---- Brand ------------------------------------------------------------------------------ */
+  --color-ink: #15130f;
+  --color-brass: #96744a;
+  --color-brass-strong: #7a5b36; /* brass as text on light surfaces (AA) */
+  --color-brass-soft: #d9c09a; /* brass on the dark frame */
+
+  /* ---- The dark frame --------------------------------------------------------------------- */
+  --color-on-ink: #f6f1e7;
+  --color-on-ink-secondary: rgb(246 241 231 / 0.7);
+  --color-on-ink-muted: rgb(246 241 231 / 0.52);
+  --color-on-ink-line: rgb(246 241 231 / 0.09);
+  --color-on-ink-hover: rgb(246 241 231 / 0.065);
+  --color-on-ink-pressed: rgb(246 241 231 / 0.1);
+  --color-on-ink-active: rgb(217 192 154 / 0.12);
+  --color-on-ink-active-line: rgb(217 192 154 / 0.2);
+
+  /* ---- The light workspace ---------------------------------------------------------------- */
+  --color-canvas: #f7f3ec; /* page background */
+  --color-surface: #fdfbf7; /* top bar, menus, and the cards pages will add */
+  --color-surface-hover: #f1ece1;
+  --color-surface-pressed: #e9e3d5;
+
+  --color-border: #e7e0d1;
+  --color-border-strong: #d2c8b2;
+
+  --color-text: #15130f;
+  --color-text-secondary: #5d5546;
+  --color-text-muted: #7d7464;
+
+  /* Keyboard focus: ink on light surfaces; the dark frame switches to brass (see shell.css). */
+  --color-focus: var(--color-ink);
+
+  /* ---- Typography ------------------------------------------------------------------------- */
+  --font-sans: "Manrope", "Segoe UI Variable Text", "Segoe UI", system-ui, -apple-system, sans-serif;
+  --font-display: "Fraunces", "Iowan Old Style", "Palatino Linotype", Georgia, serif;
+  --text-2xs: 10.5px;
+  --text-xs: 12px;
+  --text-sm: 13px;
+  --text-base: 13.5px;
+  --text-lg: 15px;
+  --text-brand: 18px;
+  --text-title: 23px;
+  --weight-regular: 400;
+  --weight-medium: 500;
+  --weight-semibold: 600;
+  --weight-bold: 700;
+  --tracking-caps: 0.14em; /* small uppercase labels */
+
+  /* ---- Spacing (4 px grid) ---------------------------------------------------------------- */
+  --space-1: 4px;
+  --space-2: 8px;
+  --space-3: 12px;
+  --space-4: 16px;
+  --space-5: 20px;
+  --space-6: 24px;
+  --space-7: 28px;
+  --space-8: 32px;
+
+  /* ---- Corners ---------------------------------------------------------------------------- */
+  --radius-sm: 7px;
+  --radius-md: 10px;
+  --radius-lg: 12px;
+  --radius-panel: 14px;
+  --radius-full: 999px;
+
+  /* ---- Elevation: very little. The dark frame carries the depth. --------------------------- */
+  --shadow-menu: 0 14px 34px rgb(21 19 15 / 0.16), 0 2px 8px rgb(21 19 15 / 0.08);
+  --shadow-glow: 0 0 12px rgb(217 192 154 / 0.5);
+
+  /* ---- Icons ------------------------------------------------------------------------------ */
+  --icon-size: 18px;
+  --icon-stroke: 1.6;
+
+  /* ---- Layout ----------------------------------------------------------------------------- */
+  --sidebar-width: 256px;
+  --sidebar-width-collapsed: 72px;
+  --topbar-height: 64px;
+  --frame-gap: 8px; /* the dark margin around the workspace panel */
+  --content-padding: var(--space-8);
+
+  /* ---- Motion ----------------------------------------------------------------------------- */
+  --duration-fast: 120ms;
+  --duration: 200ms;
+  --ease: cubic-bezier(0.2, 0, 0, 1);
+}

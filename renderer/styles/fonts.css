@@ -1,0 +1,25 @@
+/*
+ * Fonts, shipped with the app so it looks the same offline and on every machine.
+ * Both are variable fonts under the SIL Open Font License (see renderer/fonts/*-OFL.txt) and are
+ * the same two families the storefront website uses, so the desktop app and the shop's website
+ * read as one brand.
+ *
+ *   Manrope   the interface: navigation, controls, body text
+ *   Fraunces  display: the store name and page titles (optical size follows the text size)
+ */
+
+@font-face {
+  font-family: "Manrope";
+  font-style: normal;
+  font-weight: 200 800;
+  font-display: swap;
+  src: url("../fonts/manrope-latin-wght-normal.woff2") format("woff2");
+}
+
+@font-face {
+  font-family: "Fraunces";
+  font-style: normal;
+  font-weight: 100 900;
+  font-display: swap;
+  src: url("../fonts/fraunces-latin-opsz-normal.woff2") format("woff2");
+}
