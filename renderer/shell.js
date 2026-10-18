@@ -1,5 +1,5 @@
 // Behaviour of the application shell: which page is active, the collapsible sidebar and the
-// profile menu. Plain script, no dependencies. It only drives the shell; there are no pages yet,
+// profile menu and the Inventory sub-navigation. Plain script, no dependencies. It only drives the shell; there are no pages yet,
 // so choosing a navigation entry just updates the active item and the title in the top bar.
 (() => {
   "use strict";
@@ -18,7 +18,7 @@
   // value without the shell changing.
 
   function showPage() {
-    const wanted = location.hash.slice(1) || DEFAULT_PAGE;
+    const wanted = (location.hash.slice(1) || DEFAULT_PAGE).split("/")[0]; // "#customers/<id>" is still the Customers page
     const active = navLinks.find((link) => link.dataset.page === wanted) ?? navLinks.find((link) => link.dataset.page === DEFAULT_PAGE);
     for (const link of navLinks) {
       if (link === active) link.setAttribute("aria-current", "page");
@@ -139,4 +139,42 @@
   document.addEventListener("pointerdown", (event) => {
     if (!event.target.closest(".profile")) closeMenu(false);
   });
+  // ---- Inventory sub-navigation --------------------------------------------------------------
+  // The sub-items sit inside the sidebar, under Inventory. Hovering or focusing the entry opens
+  // them (pure CSS, see .nav-sub in shell.css); they also stay open while the current page is
+  // inside Inventory, and the highlighted sub-item follows the URL hash.
+
+  const submenuOwners = [...document.querySelectorAll("[data-has-submenu]")];
+  const subLinks = [...document.querySelectorAll(".nav-subitem")];
+
+  function expandedState(owner) {
+    return owner.dataset.open === "true" || owner.matches(":hover, :focus-within");
+  }
+
+  function showSubmenus() {
+    const hash = location.hash.slice(1);
+    const page = (hash || DEFAULT_PAGE).split("/")[0];
+    for (const owner of submenuOwners) {
+      const link = owner.querySelector(".nav-item[data-page]");
+      owner.dataset.open = String(link.dataset.page === page);
+      link.setAttribute("aria-expanded", String(expandedState(owner)));
+    }
+    for (const link of subLinks) {
+      if (link.getAttribute("href") === `#${hash}`) link.setAttribute("aria-current", "page");
+      else link.removeAttribute("aria-current");
+    }
+  }
+
+  // Hover and focus open it visually; keep aria-expanded truthful for screen readers too.
+  for (const owner of submenuOwners) {
+    const link = owner.querySelector(".nav-item[data-page]");
+    const sync = () => link.setAttribute("aria-expanded", String(expandedState(owner)));
+    owner.addEventListener("pointerenter", sync);
+    owner.addEventListener("pointerleave", sync);
+    owner.addEventListener("focusin", sync);
+    owner.addEventListener("focusout", () => setTimeout(sync));
+  }
+
+  window.addEventListener("hashchange", showSubmenus);
+  showSubmenus();
 })();

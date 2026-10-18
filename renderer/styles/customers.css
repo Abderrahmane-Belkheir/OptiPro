@@ -1,0 +1,357 @@
+/* The Customers page: header, toolbar, data table, states and pagination. */
+
+.page {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-5);
+  max-width: 1280px;
+  margin: 0 auto;
+}
+
+.page__header {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: var(--space-4);
+}
+
+.page__title {
+  font-family: var(--font-display);
+  font-size: 26px;
+  font-weight: var(--weight-semibold);
+  line-height: 1.2;
+}
+
+.page__description {
+  margin-top: 2px;
+  color: var(--color-text-secondary);
+  font-size: var(--text-sm);
+}
+
+.toolbar {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+}
+
+.toolbar .search {
+  width: min(380px, 100%);
+}
+
+.toolbar .search__input {
+  background: var(--color-surface);
+  padding-right: 36px;
+}
+
+.search__clear {
+  position: absolute;
+  right: 6px;
+  display: grid;
+  place-items: center;
+  width: 26px;
+  height: 26px;
+  border-radius: var(--radius-sm);
+  color: var(--color-text-muted);
+}
+
+.search__clear:hover {
+  background: var(--color-surface-hover);
+  color: var(--color-text);
+}
+
+.search__clear[hidden] {
+  display: none;
+}
+
+.search__clear .icon {
+  width: 14px;
+  height: 14px;
+}
+
+.toolbar__count {
+  margin-left: auto;
+  color: var(--color-text-muted);
+  font-size: var(--text-sm);
+  font-variant-numeric: tabular-nums;
+}
+
+/* ---- The table ------------------------------------------------------------------------------ */
+
+.table-card {
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-lg);
+  background: var(--color-surface);
+  overflow: hidden;
+}
+
+.table-scroll {
+  overflow-x: auto;
+}
+
+.table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: var(--text-sm);
+}
+
+.table th:first-child,
+.table td:first-child {
+  padding-left: var(--space-4);
+}
+
+.table th {
+  padding: 0 var(--space-3);
+  height: 40px;
+  border-bottom: 1px solid var(--color-border);
+  background: var(--color-canvas);
+  color: var(--color-text-muted);
+  font-size: var(--text-2xs);
+  font-weight: var(--weight-bold);
+  letter-spacing: var(--tracking-caps);
+  text-align: left;
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+
+.table td {
+  height: 56px;
+  padding: 0 var(--space-3);
+  border-bottom: 1px solid var(--color-border);
+  vertical-align: middle;
+}
+
+.table tbody tr:last-child td {
+  border-bottom: 0;
+}
+
+.table tbody tr:hover {
+  background: var(--color-canvas);
+}
+
+.table .col-actions {
+  width: 1%;
+  padding-right: var(--space-3);
+  text-align: right;
+}
+
+.cell-name {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  min-width: 140px;
+}
+
+.cell-name__stack {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.avatar-initials {
+  display: grid;
+  flex: none;
+  place-items: center;
+  width: 32px;
+  height: 32px;
+  border-radius: var(--radius-full);
+  background: rgb(150 116 74 / 0.14);
+  color: var(--color-brass-strong);
+  font-size: var(--text-xs);
+  font-weight: var(--weight-bold);
+}
+
+.cell-name__text {
+  font-weight: var(--weight-bold);
+}
+
+.cell-secondary {
+  color: var(--color-text-secondary);
+}
+
+.cell-empty {
+  color: var(--color-text-muted);
+}
+
+.cell-truncate {
+  display: block;
+  max-width: 200px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.cell-number {
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.row-menu-button {
+  display: inline-grid;
+  place-items: center;
+  width: 32px;
+  height: 32px;
+  border-radius: var(--radius-sm);
+  color: var(--color-text-secondary);
+}
+
+.row-menu-button:hover,
+.row-menu-button[aria-expanded="true"] {
+  background: var(--color-surface-pressed);
+  color: var(--color-text);
+}
+
+/* ---- Loading, empty and error states -------------------------------------------------------- */
+
+.skeleton {
+  display: block;
+  height: 12px;
+  border-radius: var(--radius-full);
+  background: linear-gradient(90deg, var(--color-surface-hover), var(--color-surface-pressed), var(--color-surface-hover));
+  background-size: 200% 100%;
+  animation: shimmer 1.4s linear infinite;
+}
+
+@keyframes shimmer {
+  to {
+    background-position: -200% 0;
+  }
+}
+
+.state {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--space-2);
+  padding: var(--space-8) var(--space-6);
+  text-align: center;
+}
+
+.state__icon {
+  display: grid;
+  place-items: center;
+  width: 48px;
+  height: 48px;
+  margin-bottom: var(--space-2);
+  border-radius: var(--radius-full);
+  background: rgb(150 116 74 / 0.12);
+  color: var(--color-brass-strong);
+}
+
+.state__icon .icon {
+  width: 22px;
+  height: 22px;
+}
+
+.state--error .state__icon {
+  background: rgb(158 42 34 / 0.1);
+  color: var(--color-danger);
+}
+
+.state__title {
+  font-family: var(--font-display);
+  font-size: 18px;
+  font-weight: var(--weight-semibold);
+}
+
+.state__text {
+  max-width: 420px;
+  color: var(--color-text-secondary);
+  font-size: var(--text-sm);
+}
+
+.state .btn {
+  margin-top: var(--space-3);
+}
+
+/* ---- Pagination ----------------------------------------------------------------------------- */
+
+.pagination {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-4);
+  padding: var(--space-3) var(--space-4);
+  border-top: 1px solid var(--color-border);
+  color: var(--color-text-secondary);
+  font-size: var(--text-sm);
+  font-variant-numeric: tabular-nums;
+}
+
+.pagination[hidden] {
+  display: none;
+}
+
+.pagination__buttons {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.pagination .btn {
+  height: 32px;
+  padding: 0 var(--space-3);
+}
+
+.cell-name__sub {
+  display: none;
+  max-width: 240px;
+  overflow: hidden;
+  color: var(--color-text-muted);
+  font-size: var(--text-xs);
+  font-weight: var(--weight-medium);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* The window is 1280 px wide by default, which leaves about 940 px for the table: the less
+   important columns give way as it narrows, and the address moves under the name. */
+@media (max-width: 1439px) {
+  .col-address {
+    display: none;
+  }
+
+  .cell-name__sub:not(:empty) {
+    display: block;
+  }
+}
+
+@media (max-width: 1279px) {
+  .col-dob {
+    display: none;
+  }
+}
+
+@media (max-width: 1099px) {
+  .col-registered {
+    display: none;
+  }
+}
+
+.back-button {
+  display: grid;
+  place-items: center;
+  align-self: flex-start;
+  width: 40px;
+  height: 40px;
+  border: 1px solid var(--color-border-strong);
+  border-radius: var(--radius-md);
+  background: var(--color-surface);
+  color: var(--color-text);
+  transition: background-color var(--duration-fast) var(--ease);
+}
+
+.back-button:hover {
+  background: var(--color-surface-hover);
+}
+
+@media (max-width: 1000px) {
+  .table th,
+  .table td {
+    padding-inline: var(--space-2);
+  }
+
+  .table th:first-child,
+  .table td:first-child {
+    padding-left: var(--space-3);
+  }
+}

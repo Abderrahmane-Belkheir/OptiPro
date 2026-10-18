@@ -6,17 +6,26 @@ import https from 'node:https';
 import net from 'node:net';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { authorize } from './lib/authorization.js';
-import { warnIfRlsDisabled } from './lib/tenantContext.js';
+import { createImageByIdHandler, createImageFileRouter, createImageRouter, IMAGES_URL_PREFIX } from './lib/imageUpload.js';
+import { createProductDeleteRouter } from './lib/productDelete.js';
+import { deleteProductImage, deleteProductWithPhotos, insertProductImage, productImageExists } from './lib/productImageStore.js';
+import { prisma } from './lib/prismaClient.js';
+import { resolveTenantKeyByHost, warnIfRlsDisabled } from './lib/tenantContext.js';
 import { getAccessories, getAccessoryById } from './services/accessoryService.js';
 import { getCatalog } from './services/catalogService.js';
 import { getFrameById, getFrames } from './services/frameService.js';
 import { getSiteInfo } from './services/siteInfoService.js';
-import { deleteRow, getTableNames, getTableRows, upsertRows, isWritable } from './services/tableService.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const publicDir = path.join(__dirname, '..', 'public');
 const resourcesDir = path.join(__dirname, '..', 'resources', 'dist');
+
+// Where uploaded photos are stored: directly in <IMAGES_DIR>, named by the id of their product_images row
+// (<IMAGES_DIR>/<id>.<type>), the same for every shop. On
+// Linux that is /images (outside the app folder, so deploying a new version never touches the
+// photos); the service user must own it — see deploy/README.md. Windows has no such folder, so
+// local development keeps them under public/images instead.
+const imagesDir = process.env.IMAGES_DIR || (process.platform === 'win32' ? path.join(publicDir, 'images') : '/images');
 
 const app = express();
 app.use(cors());
@@ -35,12 +44,45 @@ app.use((req, res, next) => {
   next();
 });
 
+// POST /api/images/<code>/<id>?type=frame|accessory -> { id, url, type, code, size, contentType }
+// A shop uploads a photo for one of its frames or accessories: <code> is that product's id, <id> the
+// photo's id (a UUID the client makes up). Authenticated with the shop's tenant key (Authorization:
+// Bearer <key>), which must exist in the tenants table; the photo id must not exist yet in
+// product_images; then one INSERT … SELECT, filtered by tenant and product id, inserts the row with that
+// id as its primary key (404 when the shop has no such product); the file is saved as <imagesDir>/<id>.
+// See lib/imageUpload.js.
+// DELETE /api/images/<id> (same router): deletes the photo's product_images row (filtered by the tenant key
+// that was sent) and, only if a row was deleted, its file from the disk.
+app.use(
+  '/api/images',
+  createImageRouter({
+    imagesDir,
+    findTenantByKey: (key) => prisma.tenant.findUnique({ where: { key }, select: { key: true } }),
+    productImageExists,
+    insertProductImage,
+    deleteProductImage,
+  }),
+);
+
+// DELETE /api/frames/<id> and DELETE /api/accessories/<id> -> { id, type, deleted, photos: { deleted, filesRemoved } }
+// Deletes the shop's frame/accessory (authenticated with its tenant key): in one transaction its photos'
+// ids are fetched and the product is deleted (its product_images rows go with it); only after that
+// succeeded are the photos' files deleted from the disk. See lib/productDelete.js.
+app.use(
+  '/api',
+  createProductDeleteRouter({
+    imagesDir,
+    findTenantByKey: (key) => prisma.tenant.findUnique({ where: { key }, select: { key: true } }),
+    deleteProductWithPhotos,
+  }),
+);
+
 // GET /api/catalog -> { categories: { id, name, url }[], brands: { id, name }[] }
 app.get('/api/catalog', async (req, res) => {
   res.json(await getCatalog(req.hostname));
 });
 
-// GET /api/frames?brandId=&categoryId= -> { id, name, brand, category, price?, currency?, images: string[], shape?, colors?, inStock }[]
+// GET /api/frames?brandId=&categoryId= -> { id, name, brand, category, price?, currency?, images: string[] (photo CODES), imageIds: string[], shape?, colors?, inStock }[]
 app.get('/api/frames', async (req, res) => {
   const { brandId, categoryId } = req.query;
   if (!brandId || !categoryId) {
@@ -50,7 +92,7 @@ app.get('/api/frames', async (req, res) => {
   res.json(await getFrames({ host: req.hostname, brandId, categoryId }));
 });
 
-// GET /api/frames/:id -> { id, name, brand, category, price?, currency?, images: string[], shape?, colors?, inStock } (404 if not found)
+// GET /api/frames/:id -> { id, name, brand, category, price?, currency?, images: string[] (photo CODES), imageIds: string[], shape?, colors?, inStock } (404 if not found)
 // Only needed when a frame's link is opened directly, before the list that contains it was loaded.
 app.get('/api/frames/:id', async (req, res) => {
   const frame = await getFrameById(req.hostname, req.params.id);
@@ -61,12 +103,12 @@ app.get('/api/frames/:id', async (req, res) => {
   res.json(frame);
 });
 
-// GET /api/accessories -> { id, name, description, price?, currency?, images: string[], inStock }[]
+// GET /api/accessories -> { id, name, description, price?, currency?, images: string[] (photo CODES), imageIds: string[], inStock }[]
 app.get('/api/accessories', async (req, res) => {
   res.json(await getAccessories(req.hostname));
 });
 
-// GET /api/accessories/:id -> { id, name, description, price?, currency?, images: string[], inStock } (404 if not found)
+// GET /api/accessories/:id -> { id, name, description, price?, currency?, images: string[] (photo CODES), imageIds: string[], inStock } (404 if not found)
 // Only needed when an accessory's link is opened directly, before the list that contains it was loaded.
 app.get('/api/accessories/:id', async (req, res) => {
   const accessory = await getAccessoryById(req.hostname, req.params.id);
@@ -87,82 +129,25 @@ app.get('/api/infos', async (req, res) => {
   res.json(siteInfo);
 });
 
-// The Authorization header is the tenant's key. 404 (with code INVALID_TENANT_KEY, so the desktop
-// client can tell it from a missing row) if it's missing, empty or no tenant has that key.
-// Runs before anything else on the route — including body parsing and the table-name check — so an
-// unauthenticated caller can neither probe which tables exist nor get a body-validation error.
-// Tenant scoping comes from this key, never from the request's host.
-const INVALID_TENANT_KEY = 'INVALID_TENANT_KEY';
+// GET /api/images/:id -> a photo by its id (the ids come in `imageIds` of every frame and accessory). The
+// upload is the same path with POST and a code (POST /api/images/:code, above). Public. The photos for it
+// live directly in the images folder, the same for every shop: <imagesDir>/<id>. If such a file exists it
+// is sent, otherwise 404. See lib/imageUpload.js.
+app.get('/api/images/:id', createImageByIdHandler({ imagesDir }));
 
-async function requireTenantKey(req, res, next) {
-  const authorization = req.headers.authorization;
-  if (!authorization) {
-    res.status(404).json({ error: 'Missing Authorization header.', code: INVALID_TENANT_KEY });
-    return;
-  }
-  const tenantKey = await authorize(authorization);
-  if (!tenantKey) {
-    res.status(404).json({ error: 'Invalid Authorization key.', code: INVALID_TENANT_KEY });
-    return;
-  }
-  req.tenantKey = tenantKey;
-  next();
-}
+// GET /images/<host>/<code> -> the photo uploaded under that code (code with or without its
+// extension) by the shop whose host name that is. Public, no authentication; the address carries the
+// host, never the tenant key (the shop's upload credential): the key is looked up in the tenants
+// table and the file read from <imagesDir>/<tenant key>/<code>. See lib/imageUpload.js. Anything it
+// doesn't recognise (the older photos laid out as public/images/frames/aviator.svg, the website's
+// own images) falls through to the static folders below.
+app.use(IMAGES_URL_PREFIX, createImageFileRouter({
+    imagesDir,
+    findKeyByHost: resolveTenantKeyByHost,
+    legacyDirs: [path.join(publicDir, 'images', 'frames'), path.join(publicDir, 'images', 'accessories')],
+  }));
 
-// GET /api/tables/:table -> every row of that table the tenant can see (404 if the table isn't one
-// this app manages). Row visibility is Postgres row-level security, see lib/tenantContext.js.
-app.get('/api/tables/:table', requireTenantKey, async (req, res) => {
-  const rows = await getTableRows(req.tenantKey, req.params.table);
-  if (!rows) {
-    res.status(404).json({ error: `No table "${req.params.table}" available.` });
-    return;
-  }
-  res.json(rows);
-});
-
-// POST /api/tables/:table -> upserts a row (JSON object) or several (JSON array, all-or-nothing)
-// as the authorized tenant: a row whose id matches one of the tenant's rows updates it (only the
-// fields sent), any other is inserted. Responds 201 with the saved row(s) when every row was new,
-// 200 when at least one was an update. Only tenant-owned tables
-// (brands, frames, accessories, customers): 405 for categories and tenants, 404 for anything else.
-// 400/409 for bad or duplicate rows. The tenant of every row is forced to the key's; RLS is the
-// backstop.
-app.post('/api/tables/:table', requireTenantKey, express.json({ limit: '1mb' }), async (req, res) => {
-  const { table } = req.params;
-  if (!getTableNames().includes(table)) {
-    res.status(404).json({ error: `No table "${table}" available.` });
-    return;
-  }
-  if (!isWritable(table)) {
-    res.set('Allow', 'GET').status(405).json({ error: `Table "${table}" is read-only.` });
-    return;
-  }
-  const { rows, created } = await upsertRows(req.tenantKey, table, req.body);
-  res.status(created ? 201 : 200).json(rows);
-});
-
-// DELETE /api/tables/:table/:id -> deletes that row and responds 204. Same table rules as POST
-// (405 for categories/tenants, 404 for an unknown table). 404 if the tenant has no such row —
-// RLS hides other tenants' rows, so someone else's id is a 404 too — and 409 if other rows still
-// reference it (e.g. a brand that has frames).
-app.delete('/api/tables/:table/:id', requireTenantKey, async (req, res) => {
-  const { table, id } = req.params;
-  if (!getTableNames().includes(table)) {
-    res.status(404).json({ error: `No table "${table}" available.` });
-    return;
-  }
-  if (!isWritable(table)) {
-    res.set('Allow', 'GET').status(405).json({ error: `Table "${table}" is read-only.` });
-    return;
-  }
-  if (!(await deleteRow(req.tenantKey, table, id))) {
-    res.status(404).json({ error: `No row "${id}" in "${table}".` });
-    return;
-  }
-  res.status(204).end();
-});
-
-// Serves this API's own assets (the frame/accessory photos referenced by /images/... paths
+// Serves this API's own assets (the older frame/accessory photos referenced by /images/... paths
 // above) from public/. Registered before the frontend build below so these resolve correctly
 // regardless of whether a build has been deployed to resources/dist/ yet.
 app.use(express.static(publicDir));
@@ -195,14 +180,9 @@ app.use((req, res) => {
 
 // Catches errors thrown or rejected anywhere above (Express 5 forwards async route-handler
 // rejections here automatically) — must be registered last so it sees errors from every route
-// before it. Client errors that opted in with `expose` (bad JSON bodies, rejected insert rows) are
-// passed through with their own status and message; anything else is logged server-side and
-// answered with a generic 500, never leaking internals.
+// before it. Anything that reaches it is logged server-side and answered with a generic 500, never
+// leaking internals.
 app.use((err, _req, res, _next) => {
-  if (!res.headersSent && err.expose && err.status >= 400 && err.status < 500) {
-    res.status(err.status).json({ error: err.message });
-    return;
-  }
   console.error(err);
   if (res.headersSent) {
     return;

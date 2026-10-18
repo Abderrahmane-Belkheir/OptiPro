@@ -1,9 +1,10 @@
 import { app, BrowserWindow, dialog } from "electron";
 import path from "node:path";
 import { pathToFileURL } from "node:url";
-import { ConfigError, getApiConfig } from "./config";
-import { onInvalidTenantKey } from "./services";
+import { ConfigError, getConfig } from "./config";
+import { remoteDatabase, RemoteUnreachableError } from "./db";
 import { checkUnsynced, startSyncScheduler, stopSyncScheduler } from "./local";
+import { currentTenantKey } from "./local/context";
 import { registerIpcHandlers } from "./ipc/handlers";
 
 const rendererPage = path.join(__dirname, "../renderer/index.html");
@@ -37,30 +38,34 @@ function createWindow(): void {
 }
 
 app.whenReady().then(async () => {
-    // The app can't do anything useful without the server URL and tenant key, so a missing or
-    // incomplete config.properties stops it here instead of opening a window that fails later.
+    // The database URL must be in config.properties and not empty; without it the app closes here
+    // instead of opening a window that can't work.
     try {
-        getApiConfig();
+        getConfig();
     } catch (err) {
         if (!(err instanceof ConfigError)) throw err;
         dialog.showErrorBox("OptiPro can't start", err.message);
         app.exit(1);
         return;
     }
-    // The backend rejected our tenant key (404 INVALID_TENANT_KEY): nothing works without a valid
-    // one, so shut down. Being offline is expected and does not trigger this.
-    let shuttingDown = false;
-    onInvalidTenantKey(() => {
-        if (shuttingDown) return;
-        shuttingDown = true;
-        dialog.showErrorBox("OptiPro can't continue", "The server does not recognise the tenant key in config.properties. The app will close.");
+    // Which shop is this database? Learned from the database on the first run, remembered after, so
+    // later starts work offline. Not knowing it is the one thing that stops the app.
+    try {
+        await currentTenantKey();
+    } catch (err) {
+        if (!(err instanceof ConfigError) && !(err instanceof RemoteUnreachableError)) throw err;
+        dialog.showErrorBox("OptiPro can't start", err.message);
         app.exit(1);
-    });
+        return;
+    }
     // Push everything that is waiting, parents first: one pass right now, then one every 10 minutes
     // for as long as the app runs. The window doesn't wait for the first pass.
     startSyncScheduler();
-    app.on("before-quit", stopSyncScheduler);
-    // Is there any local row the backend doesn't have yet? Sets syncState.synced to false if so.
+    app.on("before-quit", () => {
+        stopSyncScheduler();
+        void remoteDatabase.close();
+    });
+    // Is there any local row not marked synced? Sets syncState.synced to false if so.
     try {
         await checkUnsynced();
     } catch (err) {

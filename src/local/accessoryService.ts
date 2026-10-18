@@ -1,6 +1,6 @@
 import { decodeStringArray, encodeStringArray, sqlitePrisma } from "../lib/sqliteClient";
 import type { Accessory, NewAccessory } from "../services/types";
-import { accessoryService as remoteAccessoryService } from "../services/accessoryService";
+import { remoteConnection } from "../db/remote";
 import { currentTenantKey } from "./context";
 import { tryPush } from "./sync";
 import { pushRow, registerPusher } from "./syncPush";
@@ -18,13 +18,15 @@ function toColumns(changes: Partial<Omit<NewAccessory, "id">>) {
 }
 
 /**
- * Sends just-saved (inserted or updated) accessories to the backend in one request and marks them synced if it
+ * Sends just-saved (inserted or updated) accessories to the remote database in one request and marks them synced if it
  * accepted them. Returns the rows as they now stand.
  */
 export async function pushRows(ids: string[], tenantKey: string): Promise<Accessory[]> {
   const rows = await sqlitePrisma.accessory.findMany({ where: { id: { in: ids }, tenantKey } });
   await tryPush(`${rows.length} accessory(ies)`, async () => {
-    await remoteAccessoryService.upsertMany(
+    await remoteConnection.upsertMany(
+      tenantKey,
+      "accessories",
       rows.map(({ id, name, description, price, currency, images, stock, costPrice }) => ({
         id, name, description, price, currency, images: decodeStringArray(images), stock, costPrice,
       })),

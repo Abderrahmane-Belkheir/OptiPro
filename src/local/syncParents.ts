@@ -1,7 +1,7 @@
 // The one place that says which rows must be synced before another can be pushed.
 //
-// A row is only sent to the backend when EVERY row it points at (its "parents") is already synced —
-// one unsynced parent is enough to hold it back, because the backend refuses a row that refers to
+// A row is only sent to the remote database when EVERY row it points at (its "parents") is already synced —
+// one unsynced parent is enough to hold it back, because the remote database refuses a row that refers to
 // something it doesn't have. Optional references left empty don't count.
 //
 // Only tables that have a `synced` column can be parents: foreign keys into `categories` (global,
@@ -41,7 +41,7 @@ export interface SyncParent {
  * the check script enforces that too, because the SQL filter in syncPush.ts relies on it.
  */
 export const SYNC_PARENTS: Record<string, SyncParent[]> = {
-  // frames.brandId is also checked for the brand's backend id (remoteId) in frameService.ts.
+  // frames.brandId is also checked for the brand's remote database id (remoteId) in frameService.ts.
   frames: [{ field: "brandId", parent: "brands" }],
   prescriptions: [{ field: "customerId", parent: "customers" }],
   orders: [

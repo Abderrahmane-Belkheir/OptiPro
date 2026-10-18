@@ -4,8 +4,8 @@ import { translateError } from "./errors";
 
 
 /**
- * Categories are global (not per tenant) and read-only on the server, so locally they are read and
- * stored as a whole — `replaceAll` is how a copy fetched from the backend is saved.
+ * Categories are global (not per tenant) and read-only, so they are read and stored as a whole —
+ * `replaceAll` saves a fresh copy of the list.
  */
 export const localCategoryService = {
   list(): Promise<Category[]> {

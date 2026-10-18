@@ -1,7 +1,7 @@
 import { ipcMain, type IpcMainInvokeEvent } from "electron";
 import {
-  LocalDbError, localAccessoryService, localBrandService, localCategoryService, localCustomerService,
-  localFrameService, localInvoiceItemService, localInvoiceService, localLensService, localNumberService,
+  ImageUploadError, LocalDbError, localAccessoryService, localBrandService, localCategoryService, localCustomerService,
+  localFrameService, localImageService, localInvoiceItemService, localInvoiceService, localLensService, localNumberService,
   localOrderItemService, localOrderService, localPaymentService, localPrescriptionService,
 } from "../local";
 import { API_METHODS, channelFor, type ApiName, type IpcResult } from "./channels";
@@ -22,6 +22,7 @@ const services: Record<ApiName, Record<string, AnyFunction>> = {
   payments: localPaymentService,
   invoices: localInvoiceService,
   invoiceItems: localInvoiceItemService,
+  images: localImageService,
   numbers: localNumberService,
 } as unknown as Record<ApiName, Record<string, AnyFunction>>;
 
@@ -35,14 +36,15 @@ const SYNC_COLUMNS = ["synced", "remoteId"];
 /** A copy of the value with the sync columns removed from every row in it (a row, or a list of rows). */
 function withoutSyncColumns(value: unknown): unknown {
   if (Array.isArray(value)) return value.map(withoutSyncColumns);
-  if (value && typeof value === "object" && !(value instanceof Date)) {
+  // Only plain objects are rows; bytes (an image being uploaded), dates and the like pass through untouched.
+  if (value && typeof value === "object" && (Object.getPrototypeOf(value) === Object.prototype || Object.getPrototypeOf(value) === null)) {
     return Object.fromEntries(Object.entries(value).filter(([key]) => !SYNC_COLUMNS.includes(key)));
   }
   return value;
 }
 
 function describeError(err: unknown): { name: string; message: string; kind?: string } {
-  if (err instanceof LocalDbError) return { name: err.name, message: err.message, kind: err.kind };
+  if (err instanceof LocalDbError || err instanceof ImageUploadError) return { name: err.name, message: err.message, kind: err.kind };
   if (err instanceof Error) return { name: err.name, message: err.message };
   return { name: "Error", message: String(err) };
 }
@@ -71,7 +73,7 @@ export function registerIpcHandlers(isTrusted: (event: Pick<IpcMainInvokeEvent, 
         } catch (err) {
           // Expected failures (a missing row, a duplicate number, a missing config) go back to the
           // window as data; anything else is a bug worth seeing in the terminal too.
-          if (!(err instanceof LocalDbError) && !(err instanceof Error && err.name === "ConfigError")) {
+          if (!(err instanceof LocalDbError) && !(err instanceof ImageUploadError) && !(err instanceof Error && err.name === "ConfigError")) {
             console.error(`[ipc] ${name}.${method} failed:`, err);
           }
           return { ok: false, error: describeError(err) };

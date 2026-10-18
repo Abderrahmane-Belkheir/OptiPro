@@ -9,6 +9,10 @@ import { prisma } from './prismaClient.js';
  *
  * Queries on tenant-owned tables (brands, frames, accessories, customers) must go through `tx`: the same query
  * on the plain `prisma` client has no tenant set, and Postgres returns no rows for it.
+ *
+ * This is the second line of defence. Every such query must also filter on `tenantKey` itself
+ * (`where: { tenantKey, … }`): row-level security is skipped entirely for a role with BYPASSRLS and for
+ * the table owner, and a query that relied on it alone would then return every tenant's rows.
  */
 export function withTenant(tenantKey, fn) {
   return prisma.$transaction(async (tx) => {

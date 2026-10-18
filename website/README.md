@@ -116,13 +116,20 @@ photo never breaks the tile.
 }
 ```
 
-**The backend sends paths, not full URLs**, for every image it owns (`Category.url`,
-`Frame.images[]`, `Accessory.imageUrl`) — e.g. `/frames/clubmaster-optics.jpg` — the client
-resolves them against `config/apiOrigin.ts`'s `API_ORIGIN` (set via the `VITE_API_ORIGIN` env var;
-empty/same-origin by default) through `utils/resolveAssetUrl.ts`, which every data-fetching hook
-runs its result through before anything renders. An already-absolute URL (`https://…`, `//cdn…`)
-is left untouched, so a category pointed at a different host entirely (the backend's own
-`Category.url` values are hotlinked Unsplash photos) still works unchanged.
+**Frame and accessory photos arrive as codes, not addresses.** `Frame.images[]` and
+`Accessory.images[]` hold only each photo's code (`"aviator-gold.jpg"`); the client works the full
+address out itself, as `<API origin>/images/<host name>/<code>`, through `utils/resolveImageUrl.ts`
+(rules in `utils/imageUrl.ts`). The host name is the one the site is served from
+(`window.location.hostname`): the backend turns it into the shop and reads the photo from that
+shop's folder, so no private key ever appears in an address. `API_ORIGIN` is
+`config/apiOrigin.ts` (set via the `VITE_API_ORIGIN` env var; empty/same-origin by default). Every
+data-fetching hook runs its result through this before anything renders. An already-absolute URL
+(`https://…`, `//cdn…`) is left untouched, and so is a path starting with `/`, which resolves
+against the origin as before.
+
+**Other images the backend owns** (`Category.url`) are still sent as paths (or absolute URLs, e.g.
+the hotlinked Unsplash photos) and resolved against `API_ORIGIN` through
+`utils/resolveAssetUrl.ts`.
 
 ## Frames
 

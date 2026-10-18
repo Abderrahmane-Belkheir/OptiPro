@@ -3,11 +3,9 @@
 // builds window.electronAPI from it) read this list, so it must not import anything heavy: the
 // preload runs next to the page and must never load the database.
 //
-// Only the local services are exposed - the window never talks to the backend directly. Syncing runs
-// in the background (src/local/syncScheduler.ts) and is deliberately invisible to the UI: nothing
-// about pushing is exposed here, and the sync bookkeeping columns never cross this boundary (see
-// handlers.ts). Internal methods (pushRows) are left out too, and so is anything that reads the
-// tenant key or the server address from config.properties.
+// Only the local services are exposed - the window never talks to the backend directly. The sync
+// bookkeeping columns never cross this boundary (see handlers.ts), and nothing that reads the
+// tenant key from config.properties is exposed.
 
 export const API_METHODS = {
   brands: ["list", "get", "insert", "update", "remove"],
@@ -22,6 +20,8 @@ export const API_METHODS = {
   payments: ["list", "get", "insert", "insertMany", "update", "remove"],
   invoices: ["list", "get", "insert", "insertMany", "update", "remove"],
   invoiceItems: ["list", "get", "insert", "insertMany", "update", "remove"],
+  /** Photos of frames and accessories: upload(type, code, bytes[, photoId]) adds one photo to the frame/accessory with id `code` (type is "frame" or "accessory"; the photo's UUID is made up when not given); choose(type, code) opens a file picker and uploads each pick the same way. Needs a connection. */
+  images: ["upload", "choose"],
   /** Printed document numbers: next("invoice") -> "FAC-2026-0042". */
   numbers: ["next", "list"],
 } as const;

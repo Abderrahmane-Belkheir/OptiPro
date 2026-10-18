@@ -14,11 +14,11 @@ import { SYNC_PARENTS } from "./syncParents";
  * parent left empty doesn't count. Rows that fail the filter are not sent and not touched, so they
  * can be tried again later, e.g. once their parent has been pushed.
  *
- * Every insert and update calls pushRow right after saving. When the backend accepts the row, the
+ * Every insert and update calls pushRow right after saving. When the remote database accepts the row, the
  * row's `synced` flag is set to 1 in that same step (inside the table's pusher), so a row is never
  * "sent but still marked unsynced" or the other way round.
  *
- * Neither function throws because the backend is unreachable — they report it in their result —
+ * Neither function throws because the remote database is unreachable — they report it in their result —
  * and both honour `syncFlag.push = false`. To release a whole chain of dependent rows, call
  * pushTable for each table parents first (SYNC_ORDER).
  *
@@ -27,7 +27,7 @@ import { SYNC_PARENTS } from "./syncParents";
  */
 
 type Id = string | number;
-/** Sends these rows of one table to the backend and marks the accepted ones synced. */
+/** Sends these rows of one table to the remote database and marks the accepted ones synced. */
 export type Pusher = (ids: Id[], tenantKey: string) => Promise<unknown>;
 
 /** Every synced table, parents first, with its Prisma delegate. */
@@ -64,13 +64,13 @@ function pusherFor(table: SyncTable): Pusher {
   return pusher;
 }
 
-/** The most rows sent in one request (the backend accepts up to 500, all or nothing). */
+/** The most rows sent in one request (the remote database accepts up to 500, all or nothing). */
 const DEFAULT_BATCH_SIZE = 500;
 
 /**
  * The SQL condition "every parent is synced", as a Prisma filter that becomes a join in the query.
  * A required parent must be synced; an optional one must be empty or synced. A frame's brand must
- * also have the backend's id for it (remoteId), because that is what the frame is sent with.
+ * also have the remote database's id for it (remoteId), because that is what the frame is sent with.
  */
 function readyFilter(table: SyncTable): object[] {
   return (SYNC_PARENTS[table] ?? []).map(({ field, optional }) => {
@@ -101,12 +101,12 @@ export interface PushRowResult {
    *  not-found           no such row for this tenant
    *  already-synced      nothing to do
    *  parents-not-synced  a parent is not synced yet; nothing was sent
-   *  push-failed         the backend did not accept it (offline, refused, or syncFlag.push is off); it stays unsynced
+   *  push-failed         the remote database did not accept it (offline, refused, or syncFlag.push is off); it stays unsynced
    */
   reason?: "not-found" | "already-synced" | "parents-not-synced" | "push-failed";
 }
 
-/** Pushes one row, if it is unsynced and all its parents are synced; sets `synced` to 1 once the backend has it. */
+/** Pushes one row, if it is unsynced and all its parents are synced; sets `synced` to 1 once the remote database has it. */
 export async function pushRow(table: SyncTable, id: Id): Promise<PushRowResult> {
   assertTable(table);
   const tenantKey = await currentTenantKey();
@@ -132,7 +132,7 @@ export interface PushTableResult {
   pending: number;
   /** Of those, the ones whose parents are all synced: the ones that were sent. */
   eligible: number;
-  /** Of those, the ones the backend accepted (0 when it is unreachable). */
+  /** Of those, the ones the remote database accepted (0 when it is unreachable). */
   sent: number;
   /** pending - eligible: rows still waiting for a parent. */
   held: number;

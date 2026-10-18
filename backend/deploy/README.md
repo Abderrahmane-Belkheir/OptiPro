@@ -31,6 +31,9 @@ in `optician-backend.service`'s `WorkingDirectory`.
 ## First-time server setup, in order
 
 1. Point DNS at the server, open ports 80/443.
+   Create the photo folder the upload endpoints write to, owned by the service user (it lives outside
+   `app/`, so deploying a new version never touches the photos):
+   `sudo mkdir -p /images && sudo chown <service user>: /images` (another place: set `IMAGES_DIR`).
 2. `sudo setcap 'cap_net_bind_service=+ep' $(readlink -f $(which node))` — lets Node bind
    80/443 without running as root.
 3. Get a cert (see `../README.md` for the certbot commands — webroot or standalone).

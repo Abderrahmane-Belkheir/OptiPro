@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react';
 import { apiFrameService } from '../services/frameService';
 import type { Frame } from '../types/frame';
 import { frameCache } from '../utils/itemCache';
-import { resolveAssetUrl } from '../utils/resolveAssetUrl';
+import { resolveImageUrl } from '../utils/resolveImageUrl';
 
 /** Keyed by `${categoryId}:${brandId}`, so revisiting a combination already seen this session skips the network call. */
 const framesCache = new Map<string, Frame[]>();
@@ -10,7 +10,7 @@ const framesCache = new Map<string, Frame[]>();
 function resolveFrame(frame: Frame): Frame {
   return {
     ...frame,
-    images: frame.images.map((url) => resolveAssetUrl(url) ?? url),
+    images: frame.images.map((url) => resolveImageUrl(url) ?? url),
   };
 }
 

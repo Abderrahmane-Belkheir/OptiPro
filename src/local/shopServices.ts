@@ -1,8 +1,4 @@
 import { sqlitePrisma } from "../lib/sqliteClient";
-import {
-  invoiceItemService, invoiceService, lensService, numberSequenceService, orderItemService, orderService,
-  paymentService, prescriptionService,
-} from "../services/shopServices";
 import type {
   Invoice, InvoiceItem, Lens, NewInvoice, NewInvoiceItem, NewLens, NewOrder, NewOrderItem, NewPayment,
   NewPrescription, NumberSequence, Order, OrderItem, Payment, Prescription,
@@ -16,7 +12,6 @@ export const localPrescriptionService = createLocalTableService<Prescription, Ne
   table: "prescriptions",
   label: "prescription",
   delegate: "prescription",
-  remote: prescriptionService,
   dateFields: ["prescribedAt"],
   parents: parentsOf("prescriptions"),
   orderBy: { prescribedAt: "desc" },
@@ -26,7 +21,6 @@ export const localLensService = createLocalTableService<Lens, NewLens>({
   table: "lenses",
   label: "lens",
   delegate: "lens",
-  remote: lensService,
   orderBy: { name: "asc" },
 });
 
@@ -34,7 +28,6 @@ export const localOrderService = createLocalTableService<Order, NewOrder>({
   table: "orders",
   label: "order",
   delegate: "order",
-  remote: orderService,
   dateFields: ["orderedAt", "promisedAt", "deliveredAt"],
   parents: parentsOf("orders"),
   orderBy: { orderedAt: "desc" },
@@ -44,7 +37,6 @@ export const localOrderItemService = createLocalTableService<OrderItem, NewOrder
   table: "order_items",
   label: "order item",
   delegate: "orderItem",
-  remote: orderItemService,
   parents: parentsOf("order_items"),
   orderBy: { createdAt: "asc" },
 });
@@ -53,7 +45,6 @@ export const localPaymentService = createLocalTableService<Payment, NewPayment>(
   table: "payments",
   label: "payment",
   delegate: "payment",
-  remote: paymentService,
   dateFields: ["paidAt", "chequeDueDate"],
   parents: parentsOf("payments"),
   orderBy: { paidAt: "desc" },
@@ -63,7 +54,6 @@ export const localInvoiceService = createLocalTableService<Invoice, NewInvoice>(
   table: "invoices",
   label: "invoice",
   delegate: "invoice",
-  remote: invoiceService,
   dateFields: ["issuedAt"],
   parents: parentsOf("invoices"),
   orderBy: { issuedAt: "desc" },
@@ -73,7 +63,6 @@ export const localInvoiceItemService = createLocalTableService<InvoiceItem, NewI
   table: "invoice_items",
   label: "invoice line",
   delegate: "invoiceItem",
-  remote: invoiceItemService,
   parents: parentsOf("invoice_items"),
   orderBy: { createdAt: "asc" },
 });
@@ -84,7 +73,6 @@ const sequenceService = createLocalTableService<NumberSequence, never>({
   table: "number_sequences",
   label: "number sequence",
   delegate: "numberSequence",
-  remote: numberSequenceService,
   orderBy: { year: "desc" },
 });
 

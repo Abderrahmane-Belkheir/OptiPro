@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react';
 import { apiFrameService } from '../services/frameService';
 import type { Frame } from '../types/frame';
 import { dedupeById, frameCache } from '../utils/itemCache';
-import { resolveAssetUrl } from '../utils/resolveAssetUrl';
+import { resolveImageUrl } from '../utils/resolveImageUrl';
 
 type FetchStatus = 'idle' | 'loading' | 'notFound' | 'error';
 
@@ -37,7 +37,7 @@ export function useFrame(id: string | undefined): UseFrameResult {
           setStatus('notFound');
           return;
         }
-        frameCache.set(id, { ...result, images: result.images.map((url) => resolveAssetUrl(url) ?? url) });
+        frameCache.set(id, { ...result, images: result.images.map((url) => resolveImageUrl(url) ?? url) });
         setStatus('idle'); // the frame itself is derived from the cache below; this just re-renders
       })
       .catch(() => {

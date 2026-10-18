@@ -1,6 +1,6 @@
 import { decodeStringArray, encodeStringArray, sqlitePrisma } from "../lib/sqliteClient";
 import type { Frame, NewFrame } from "../services/types";
-import { frameService as remoteFrameService } from "../services/frameService";
+import { remoteConnection } from "../db/remote";
 import { currentTenantKey } from "./context";
 import { tryPush } from "./sync";
 import { pushRow, registerPusher } from "./syncPush";
@@ -30,8 +30,8 @@ async function assertOwnBrand(brandId: number, tenantKey: string): Promise<void>
 // The brand is this table's one parent that must be synced (see SYNC_PARENTS in syncParents.ts); the check
 // is the `brand: { synced: true, remoteId: { not: null } }` filter in pushRows below.
 /**
- * Sends just-saved (inserted or updated) frames to the backend in one request and marks them synced if it accepted
- * them. A frame whose brand isn't synced yet is held back: the backend would either refuse its
+ * Sends just-saved (inserted or updated) frames to the remote database in one request and marks them synced if it accepted
+ * them. A frame whose brand isn't synced yet is held back: the remote database would either refuse its
  * brandId or, worse, match a different brand that happens to have the same number.
  * Returns the rows as they now stand.
  */
@@ -42,8 +42,10 @@ export async function pushRows(ids: string[], tenantKey: string): Promise<Frame[
   });
   if (sendable.length) {
     await tryPush(`${sendable.length} frame(s)`, async () => {
-      // brandId goes as the brand's id on the backend, which differs from the local one.
-      await remoteFrameService.upsertMany(
+      // brandId goes as the brand's id on the remote database, which differs from the local one.
+      await remoteConnection.upsertMany(
+      tenantKey,
+      "frames",
         sendable.map(({ id, name, price, currency, images, shape, colors, stock, brand, categoryId, eyeSize, bridge, templeLength, reference, costPrice }) => ({
           id, name, price, currency, images: decodeStringArray(images), shape, colors: decodeStringArray(colors), stock, brandId: brand.remoteId!, categoryId,
           eyeSize, bridge, templeLength, reference, costPrice,

@@ -1,4 +1,4 @@
-import { categoryService } from "../services/categoryService";
+import { remoteConnection } from "../db/remote";
 import { syncFlag } from "./sync";
 import { countPending, pushTable, SYNC_ORDER, type PushTableResult, type SyncTable } from "./syncPush";
 import { checkUnsynced } from "./syncStatus";
@@ -12,7 +12,7 @@ import { checkUnsynced } from "./syncStatus";
  *
  * A pass is cheap when there is nothing to do and never piles up:
  *   - it first counts pending rows locally; with none, it ends without touching the network;
- *   - it pings the backend once; if that fails the pass ends there, instead of every table waiting
+ *   - it pings the remote database once; if that fails the pass ends there, instead of every table waiting
  *     out its own timeout, and the next scheduled pass tries again;
  *   - a pass that is still running makes any other trigger (timer or manual) return "already-running";
  *   - syncFlag.push = false turns the pass into a no-op.
@@ -27,14 +27,14 @@ export interface SyncRun {
   /** What started the pass. */
   trigger: "start" | "timer" | "manual";
   /**
-   *  pushed               ran the tables (see `tables`; `sent` may still be 0 if the backend refused rows)
+   *  pushed               ran the tables (see `tables`; `sent` may still be 0 if the remote database refused rows)
    *  nothing-to-push      no row has synced = 0
    *  disabled             syncFlag.push is false
-   *  backend-unavailable  the backend could not be reached; nothing was attempted
+   *  database-unavailable  the remote database could not be reached; nothing was attempted
    *  config-error         config.properties is missing or incomplete
    *  already-running      another pass was in progress; this one did nothing
    */
-  outcome: "pushed" | "nothing-to-push" | "disabled" | "backend-unavailable" | "config-error" | "already-running";
+  outcome: "pushed" | "nothing-to-push" | "disabled" | "database-unavailable" | "config-error" | "already-running";
   /** Only the tables that had pending rows. */
   tables: PushTableResult[];
   sent: number;
@@ -59,9 +59,9 @@ export async function pushAll(trigger: SyncRun["trigger"] = "manual"): Promise<S
     startedAt, finishedAt: new Date().toISOString(), trigger, outcome, tables: [], sent: 0, held: 0, errors: [], ...rest,
   });
 
-  /** A pass that could not start: a missing config.properties is one thing, anything else means the backend. */
+  /** A pass that could not start: a missing config.properties is one thing, anything else means the remote database. */
   const failed = (err: unknown): SyncRun =>
-    done(err instanceof Error && err.name === "ConfigError" ? "config-error" : "backend-unavailable", {
+    done(err instanceof Error && err.name === "ConfigError" ? "config-error" : "database-unavailable", {
       errors: [{ message: err instanceof Error ? err.message : String(err) }],
     });
 
@@ -76,9 +76,9 @@ export async function pushAll(trigger: SyncRun["trigger"] = "manual"): Promise<S
       return remember(done("nothing-to-push"));
     }
 
-    // One cheap read tells whether the backend is there before 12 tables each try on their own.
+    // One cheap read tells whether the remote database is there before 12 tables each try on their own.
     try {
-      await categoryService.list();
+      await remoteConnection.ping();
     } catch (err) {
       return remember(failed(err));
     }

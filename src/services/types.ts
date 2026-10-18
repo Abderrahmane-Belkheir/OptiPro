@@ -1,6 +1,5 @@
-// Shapes of what GET /api/tables/:table returns (the raw rows — not the reshaped objects the
-// public website routes return) and what POST /api/tables/:table accepts. `tenantKey` is never
-// sent: the backend sets it from the Authorization key.
+// Shapes of the rows the local database stores and the services return (dates as ISO strings,
+// array columns as real arrays). `tenantKey` is set from config.properties, never by the caller.
 
 export interface Brand {
   id: number;

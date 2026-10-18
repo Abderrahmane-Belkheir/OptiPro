@@ -4,6 +4,7 @@ export { localBrandService } from "./brandService";
 export { localCategoryService } from "./categoryService";
 export { localCustomerService } from "./customerService";
 export { localFrameService } from "./frameService";
+export { ImageUploadError, localImageService, uploadFiles, MAX_IMAGE_BYTES, PRODUCT_TYPES, type ProductType, type ImageUploadErrorKind, type UploadBatch, type UploadedImage } from "./imageService";
 export {
   localInvoiceItemService, localInvoiceService, localLensService, localNumberService, localOrderItemService,
   localOrderService, localPaymentService, localPrescriptionService,

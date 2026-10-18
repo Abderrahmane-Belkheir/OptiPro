@@ -4,8 +4,11 @@
 // Get a free hosted Postgres database in seconds: `npx create-db`
 
 generator client {
-  provider = "prisma-client-js"
-  output   = "../src/generated/prisma"
+  provider        = "prisma-client-js"
+  output          = "../src/generated/prisma"
+  // lets a query load a relation with one SQL join (relationLoadStrategy: "join"): used to read a
+  // frame's or accessory's photo ids together with the product itself
+  previewFeatures = ["relationJoins"]
 }
 
 datasource db {
@@ -53,15 +56,7 @@ model Frame {
   tenantKey String @map("tenant_key")
   tenant    Tenant @relation(fields: [tenantKey], references: [key])
 
-  orderItems OrderItem[]
-
-  /// Printed on every frame: eye size, bridge and temple length in mm (e.g. 52-18-140).
-  eyeSize      Int?    @map("eye_size")
-  bridge       Int?
-  templeLength Int?    @map("temple_length")
-  /// Manufacturer model code.
-  reference    String?
-  costPrice    Float?  @map("cost_price")
+  productImages ProductImage[]
 
   @@map("frames")
 }
@@ -78,33 +73,9 @@ model Accessory {
   tenantKey String @map("tenant_key")
   tenant    Tenant @relation(fields: [tenantKey], references: [key])
 
-  orderItems OrderItem[]
-
-  costPrice Float? @map("cost_price")
+  productImages ProductImage[]
 
   @@map("accessories")
-}
-
-model Customer {
-  id        String   @id @default(uuid())
-  name      String
-  phone     String?
-  email     String?
-  address   String?
-  notes     String?
-  createdAt DateTime @default(now()) @map("created_at")
-
-  tenantKey String @map("tenant_key")
-  tenant    Tenant @relation(fields: [tenantKey], references: [key])
-
-  prescriptions Prescription[]
-  orders        Order[]
-  payments      Payment[]
-  invoices      Invoice[]
-
-  dateOfBirth DateTime? @map("date_of_birth")
-
-  @@map("customers")
 }
 
 model Tenant {
@@ -118,255 +89,27 @@ model Tenant {
   email        String?
   address      String?
 
-  brands      Brand[]
-  frames      Frame[]
-  accessories Accessory[]
-  customers   Customer[]
-
-  prescriptions   Prescription[]
-  lenses          Lens[]
-  orders          Order[]
-  orderItems      OrderItem[]
-  payments        Payment[]
-  invoices        Invoice[]
-  invoiceItems    InvoiceItem[]
-  numberSequences NumberSequence[]
+  brands        Brand[]
+  frames        Frame[]
+  accessories   Accessory[]
+  productImages ProductImage[]
 
   @@map("tenants")
 }
 
-// ====================================================================================
-// Shop management: prescriptions, lenses, orders, payments, invoices.
-// Every table below belongs to one tenant, has a client-generated UUID id (so rows can be
-// created offline), and money in integer minor units (centimes).
-// ====================================================================================
+// The photos of a product: one row per photo, belonging to EITHER a frame OR an accessory (the table's
+// CHECK keeps exactly one of frameId / accessoryId filled). The row's id is the photo's id: what the
+// frame/accessory answers list in `imageIds`, and the name of the file in the images folder.
+model ProductImage {
+  id String @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
 
-model Prescription {
-  id             String   @id @default(uuid())
-  customerId     String   @map("customer_id")
-  customer       Customer @relation(fields: [customerId], references: [id])
-  /// Date written on the prescription.
-  prescribedAt   DateTime @map("prescribed_at")
-  prescriberName String?  @map("prescriber_name")
-
-  // Right eye — sphere, cylinder and add in dioptres, axis in degrees (0-180).
-  rightSphere   Float? @map("right_sphere")
-  rightCylinder Float? @map("right_cylinder")
-  rightAxis     Int?   @map("right_axis")
-  rightAdd      Float? @map("right_add")
-  // Left eye
-  leftSphere    Float? @map("left_sphere")
-  leftCylinder  Float? @map("left_cylinder")
-  leftAxis      Int?   @map("left_axis")
-  leftAdd       Float? @map("left_add")
-
-  /// Pupillary distance, millimetres.
-  pd       Float?
-  notes    String?
-  /// Photo or scan of the paper prescription.
-  imageUrl String? @map("image_url")
-
-  orders Order[]
-
-  tenantKey String   @map("tenant_key")
-  tenant    Tenant   @relation(fields: [tenantKey], references: [key])
-  createdAt DateTime @default(now()) @map("created_at")
-  updatedAt DateTime @updatedAt @map("updated_at")
-
-  pdRight            Float? @map("pd_right")
-  pdLeft             Float? @map("pd_left")
-  /// Height of the pupil above the bottom of the frame, mm — needed for progressives and bifocals.
-  fittingHeightRight Float? @map("fitting_height_right")
-  fittingHeightLeft  Float? @map("fitting_height_left")
-
-  @@index([customerId, prescribedAt])
-  @@map("prescriptions")
-}
-
-model Lens {
-  id              String  @id @default(uuid())
-  name            String
-  /// single_vision | bifocal | progressive
-  design          String  @default("single_vision")
-  /// organic | polycarbonate | mineral | high_index
-  material        String  @default("organic")
-  refractiveIndex Float?  @map("refractive_index")
-  antiReflective  Boolean @default(false) @map("anti_reflective")
-  blueLightFilter Boolean @default(false) @map("blue_light_filter")
-  photochromic    Boolean @default(false)
-  /// Per lens, in minor units (centimes).
-  priceCents      Int     @default(0) @map("price_cents")
-  costCents       Int     @default(0) @map("cost_cents")
-  isActive        Boolean @default(true) @map("is_active")
-
-  orderItems OrderItem[]
-
-  tenantKey String   @map("tenant_key")
-  tenant    Tenant   @relation(fields: [tenantKey], references: [key])
-  createdAt DateTime @default(now()) @map("created_at")
-  updatedAt DateTime @updatedAt @map("updated_at")
-
-  polarized Boolean @default(false)
-  tint      String?
-
-  @@map("lenses")
-}
-
-model Order {
-  id             String        @id @default(uuid())
-  /// Human-readable, e.g. CMD-2026-0042. Unique per shop.
-  number         String
-  customerId     String?       @map("customer_id")
-  customer       Customer?     @relation(fields: [customerId], references: [id], onDelete: Restrict)
-  prescriptionId String?       @map("prescription_id")
-  prescription   Prescription? @relation(fields: [prescriptionId], references: [id], onDelete: Restrict)
-
-  /// confirmed | at_lab | ready | delivered | cancelled
-  status      String    @default("confirmed")
-  orderedAt   DateTime  @default(now()) @map("ordered_at")
-  promisedAt  DateTime? @map("promised_at")
-  deliveredAt DateTime? @map("delivered_at")
-
-  /// Amounts in minor units (centimes), fixed at sale time so later price changes don't rewrite history.
-  subtotalCents Int     @default(0) @map("subtotal_cents")
-  discountCents Int     @default(0) @map("discount_cents")
-  totalCents    Int     @default(0) @map("total_cents")
-  notes         String?
-
-  items    OrderItem[]
-  payments Payment[]
-  invoices Invoice[]
-
-  tenantKey String   @map("tenant_key")
-  tenant    Tenant   @relation(fields: [tenantKey], references: [key])
-  createdAt DateTime @default(now()) @map("created_at")
-  updatedAt DateTime @updatedAt @map("updated_at")
-
-  @@unique([tenantKey, number])
-  @@index([customerId])
-  @@index([tenantKey, status])
-  @@map("orders")
-}
-
-model OrderItem {
-  id          String     @id @default(uuid())
-  orderId     String     @map("order_id")
-  order       Order      @relation(fields: [orderId], references: [id], onDelete: Cascade)
-  /// frame | lens | accessory | service
-  kind        String
   frameId     String?    @map("frame_id")
-  frame       Frame?     @relation(fields: [frameId], references: [id])
-  lensId      String?    @map("lens_id")
-  lens        Lens?      @relation(fields: [lensId], references: [id])
+  frame       Frame?     @relation(fields: [frameId], references: [id], onDelete: Cascade)
   accessoryId String?    @map("accessory_id")
-  accessory   Accessory? @relation(fields: [accessoryId], references: [id])
+  accessory   Accessory? @relation(fields: [accessoryId], references: [id], onDelete: Cascade)
 
-  /// What was sold, as printed — copied from the product so it survives later edits.
-  description    String
-  /// right | left | both — for lenses.
-  eye            String?
-  quantity       Int     @default(1)
-  unitPriceCents Int     @map("unit_price_cents")
-  totalCents     Int     @map("total_cents")
+  tenantKey String @map("tenant_key")
+  tenant    Tenant @relation(fields: [tenantKey], references: [key], onDelete: Cascade)
 
-  tenantKey String   @map("tenant_key")
-  tenant    Tenant   @relation(fields: [tenantKey], references: [key])
-  createdAt DateTime @default(now()) @map("created_at")
-  updatedAt DateTime @updatedAt @map("updated_at")
-
-  @@index([orderId])
-  @@map("order_items")
-}
-
-model Payment {
-  id            String    @id @default(uuid())
-  orderId       String?   @map("order_id")
-  order         Order?    @relation(fields: [orderId], references: [id], onDelete: Restrict)
-  customerId    String?   @map("customer_id")
-  customer      Customer? @relation(fields: [customerId], references: [id], onDelete: Restrict)
-  amountCents   Int       @map("amount_cents")
-  /// cash | cheque | bank_transfer | card
-  method        String    @default("cash")
-  paidAt        DateTime  @default(now()) @map("paid_at")
-  /// For a post-dated cheque.
-  chequeDueDate DateTime? @map("cheque_due_date")
-  notes         String?
-
-  tenantKey String   @map("tenant_key")
-  tenant    Tenant   @relation(fields: [tenantKey], references: [key])
-  createdAt DateTime @default(now()) @map("created_at")
-  updatedAt DateTime @updatedAt @map("updated_at")
-
-  @@index([orderId])
-  @@index([customerId])
-  @@map("payments")
-}
-
-model Invoice {
-  id              String    @id @default(uuid())
-  /// Printed number, e.g. FAC-2026-0042. Unique per shop.
-  number          String
-  /// invoice | quote | delivery_note
-  kind            String    @default("invoice")
-  orderId         String?   @map("order_id")
-  order           Order?    @relation(fields: [orderId], references: [id], onDelete: Restrict)
-  customerId      String?   @map("customer_id")
-  customer        Customer? @relation(fields: [customerId], references: [id], onDelete: Restrict)
-  issuedAt        DateTime  @default(now()) @map("issued_at")
-  subtotalCents   Int       @default(0) @map("subtotal_cents")
-  discountCents   Int       @default(0) @map("discount_cents")
-  vatCents        Int       @default(0) @map("vat_cents")
-  totalCents      Int       @default(0) @map("total_cents")
-  // Copied at issue time: a printed invoice must not change when the customer's details do.
-  customerName    String?   @map("customer_name")
-  customerAddress String?   @map("customer_address")
-
-  items InvoiceItem[]
-
-  tenantKey String   @map("tenant_key")
-  tenant    Tenant   @relation(fields: [tenantKey], references: [key])
-  createdAt DateTime @default(now()) @map("created_at")
-  updatedAt DateTime @updatedAt @map("updated_at")
-
-  @@unique([tenantKey, number])
-  @@index([customerId])
-  @@index([orderId])
-  @@map("invoices")
-}
-
-model InvoiceItem {
-  id             String  @id @default(uuid())
-  invoiceId      String  @map("invoice_id")
-  invoice        Invoice @relation(fields: [invoiceId], references: [id], onDelete: Cascade)
-  description    String
-  quantity       Int     @default(1)
-  unitPriceCents Int     @map("unit_price_cents")
-  totalCents     Int     @map("total_cents")
-
-  tenantKey String   @map("tenant_key")
-  tenant    Tenant   @relation(fields: [tenantKey], references: [key])
-  createdAt DateTime @default(now()) @map("created_at")
-  updatedAt DateTime @updatedAt @map("updated_at")
-
-  @@index([invoiceId])
-  @@map("invoice_items")
-}
-
-model NumberSequence {
-  id         String @id @default(uuid())
-  /// order | invoice | quote | delivery_note
-  kind       String
-  year       Int
-  /// Distinguishes devices that number documents offline, so two of them never issue the same number.
-  series     String @default("")
-  prefix     String @default("")
-  lastNumber Int    @default(0) @map("last_number")
-
-  tenantKey String   @map("tenant_key")
-  tenant    Tenant   @relation(fields: [tenantKey], references: [key])
-  createdAt DateTime @default(now()) @map("created_at")
-  updatedAt DateTime @updatedAt @map("updated_at")
-
-  @@unique([tenantKey, kind, year, series])
-  @@map("number_sequences")
+  @@map("product_images")
 }

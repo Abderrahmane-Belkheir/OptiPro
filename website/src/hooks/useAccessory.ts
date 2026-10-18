@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react';
 import { apiAccessoryService } from '../services/accessoryService';
 import type { Accessory } from '../types/accessory';
 import { accessoryCache, dedupeById } from '../utils/itemCache';
-import { resolveAssetUrl } from '../utils/resolveAssetUrl';
+import { resolveImageUrl } from '../utils/resolveImageUrl';
 
 type FetchStatus = 'idle' | 'loading' | 'notFound' | 'error';
 
@@ -38,7 +38,7 @@ export function useAccessory(id: string | undefined): UseAccessoryResult {
           setStatus('notFound');
           return;
         }
-        accessoryCache.set(id, { ...result, images: result.images.map((url) => resolveAssetUrl(url) ?? url) });
+        accessoryCache.set(id, { ...result, images: result.images.map((url) => resolveImageUrl(url) ?? url) });
         setStatus('idle'); // the accessory itself is derived from the cache below; this just re-renders
       })
       .catch(() => {

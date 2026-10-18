@@ -1,6 +1,6 @@
 import { sqlitePrisma } from "../lib/sqliteClient";
 import type { Customer, NewCustomer } from "../services/types";
-import { customerService as remoteCustomerService } from "../services/customerService";
+import { remoteConnection } from "../db/remote";
 import { currentTenantKey } from "./context";
 import { tryPush } from "./sync";
 import { pushRow, registerPusher } from "./syncPush";
@@ -23,13 +23,15 @@ function toDatabase<T extends { dateOfBirth?: string | null }>(customer: T): Omi
 }
 
 /**
- * Sends just-saved (inserted or updated) customers to the backend in one request (the local id goes along, so both
+ * Sends just-saved (inserted or updated) customers to the remote database in one request (the local id goes along, so both
  * sides share it) and marks them synced if it accepted them. Returns the rows as they now stand.
  */
 export async function pushRows(ids: string[], tenantKey: string): Promise<Customer[]> {
   const rows = await sqlitePrisma.customer.findMany({ where: { id: { in: ids }, tenantKey } });
   await tryPush(`${rows.length} customer(s)`, async () => {
-    await remoteCustomerService.upsertMany(
+    await remoteConnection.upsertMany(
+      tenantKey,
+      "customers",
       rows.map(({ id, name, phone, email, address, notes, dateOfBirth }) => ({
         id, name, phone, email, address, notes, dateOfBirth: dateOfBirth?.toISOString() ?? null,
       })),

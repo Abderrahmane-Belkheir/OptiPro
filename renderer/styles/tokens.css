@@ -41,6 +41,10 @@
   --color-text-secondary: #5d5546;
   --color-text-muted: #7d7464;
 
+  /* Errors and destructive actions. */
+  --color-danger: #a8322a;
+  --color-danger-strong: #8a2620;
+
   /* Keyboard focus: ink on light surfaces; the dark frame switches to brass (see shell.css). */
   --color-focus: var(--color-ink);
 

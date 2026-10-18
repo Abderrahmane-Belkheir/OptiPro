@@ -1,6 +1,7 @@
 import { randomUUID } from "node:crypto";
 import { sqlitePrisma } from "../lib/sqliteClient";
 import { currentTenantKey } from "./context";
+import { remoteConnection } from "../db/remote";
 import { LocalDbError, translateError } from "./errors";
 import { db } from "./rawDb";
 import { tryPush } from "./sync";
@@ -10,10 +11,10 @@ import { pushRow, registerPusher, type SyncTable } from "./syncPush";
  * The local read/write/sync logic shared by the shop-management tables (prescriptions, lenses,
  * orders, order lines, payments, invoices, invoice lines, number sequences). Every one of them:
  *   - is scoped to the tenant key from config.properties;
- *   - has a client-generated UUID id, the same on the backend, so no id mapping is needed;
- *   - starts `synced = false`, goes back to false on every update, and is pushed to the backend
+ *   - has a client-generated UUID id, the same on the remote database, so no id mapping is needed;
+ *   - starts `synced = false`, goes back to false on every update, and is pushed to the remote database
  *     right after it is saved (best effort — see sync.ts);
- *   - is only pushed once every row it refers to ("parents") is itself synced, because the backend
+ *   - is only pushed once every row it refers to ("parents") is itself synced, because the remote database
  *     refuses a row pointing at something it doesn't have.
  */
 
@@ -24,8 +25,6 @@ export interface TableConfig {
   label: string;
   /** The Prisma delegate name: "prescription". */
   delegate: string;
-  /** What the backend call looks like: upsertMany(rows). */
-  remote: { upsertMany(rows: never[]): Promise<unknown> };
   /** Columns holding dates; callers pass ISO strings, the database stores dates. */
   dateFields?: string[];
   /** Foreign keys into other synced tables: the row can only be pushed once the parent is. */
@@ -69,14 +68,14 @@ export function createLocalTableService<Out extends { id: string }, In extends o
     }
   }
 
-  /** What the backend is sent: the row without the local-only and server-managed columns. */
+  /** What the remote database is sent: the row without the local-only and server-managed columns. */
   function toRemote(row: Row): Row {
     const { tenantKey: _tenant, synced: _synced, updatedAt: _updated, ...rest } = toApp(row);
     return rest;
   }
 
   /**
-   * Sends the rows with these ids to the backend in one request and marks them synced if it
+   * Sends the rows with these ids to the remote database in one request and marks them synced if it
    * accepted them. A row is held back (stays unsynced, nothing is sent for it) while any parent it
    * refers to is not synced yet. Returns the rows as they now stand.
    */
@@ -94,7 +93,7 @@ export function createLocalTableService<Out extends { id: string }, In extends o
 
     if (sendable.length) {
       await tryPush(`${sendable.length} ${config.label}(s)`, async () => {
-        await config.remote.upsertMany(sendable.map(toRemote) as never[]);
+        await remoteConnection.upsertMany(tenantKey, config.table, sendable.map(toRemote));
         await table.updateMany({ where: { id: { in: sendable.map((row) => row.id) }, tenantKey }, data: { synced: true } });
       });
     }
@@ -135,7 +134,7 @@ export function createLocalTableService<Out extends { id: string }, In extends o
 
     /**
      * Saves the row (a UUID is generated when `id` is left out), then calls pushRow for it. If the
-     * backend accepted it, the row comes back with `synced: true`.
+     * remote database accepted it, the row comes back with `synced: true`.
      */
     async insert(input: In): Promise<Out> {
       const [id] = await saveMany([input]);
@@ -149,7 +148,7 @@ export function createLocalTableService<Out extends { id: string }, In extends o
       return pushRows(ids, await currentTenantKey());
     },
 
-    /** Changes only the fields given, marks the row unsynced, then calls pushRow; the row comes back `synced: true` if the backend accepted it. */
+    /** Changes only the fields given, marks the row unsynced, then calls pushRow; the row comes back `synced: true` if the remote database accepted it. */
     async update(id: string, changes: Partial<Omit<In, "id">>): Promise<Out> {
       const tenantKey = await currentTenantKey();
       try {
@@ -163,7 +162,7 @@ export function createLocalTableService<Out extends { id: string }, In extends o
       return (await service.get(id))!;
     },
 
-    /** Local only: deletes are not sent to the backend. */
+    /** Local only: deletes are not sent to the remote database. */
     async remove(id: string): Promise<void> {
       const tenantKey = await currentTenantKey();
       try {

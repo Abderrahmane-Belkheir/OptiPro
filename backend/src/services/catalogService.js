@@ -6,9 +6,10 @@ export async function getCatalog(host) {
 
   const [categoryRows, brands] = await Promise.all([
     prisma.category.findMany({ select: { id: true, name: true, imageUrl: true } }),
-    // Which tenant's brands comes back is decided by Postgres row-level security, not a filter here.
+    // Only this tenant's brands: filtered here, and row-level security (withTenant) checks it again in
+    // the database. The filter is the one that always applies; the policies only when the role is subject to RLS.
     tenantKey
-      ? withTenant(tenantKey, (tx) => tx.brand.findMany({ select: { id: true, name: true } }))
+      ? withTenant(tenantKey, (tx) => tx.brand.findMany({ where: { tenantKey }, select: { id: true, name: true } }))
       : [],
   ]);
 
