@@ -4,7 +4,7 @@
 //   Authorization: Bearer <tenant key>
 //
 // In this order:
-//   1. the tenant key must exist in the tenants table                    -> 401 UNAUTHORIZED (429 after too many wrong keys)
+//   1. the tenant key must exist in the tenants table and not be expired -> 401 UNAUTHORIZED, the same answer for both (429 after too many wrong keys)
 //   2. the table must be one of the tables in TABLE_PRIVILEGES           -> 404 TABLE_NOT_FOUND
 //   3. `action` must be insert, update or delete, given once             -> 400 INVALID_ACTION
 //   4. the table's entry in TABLE_PRIVILEGES must list that action       -> 403 ACTION_NOT_ALLOWED
@@ -15,7 +15,7 @@
 // The same endpoint, with the same answers, as backend/src/lib/tableApi.js (the Express backend); the logic in tableCore.js is shared.
 
 import { authenticate } from './auth.js';
-import { findTenantByKey } from './db.js';
+import { findActiveTenant } from './db.js';
 import { apiError, decodeSegment, json, malformedAddress } from './http.js';
 import { photoKey } from './rules.js';
 import { runTableAction } from './tableCore.js';
@@ -50,7 +50,7 @@ export const TABLE_PRIVILEGES = new Map([
 ]);
 
 export async function tableRoute(request, env, sql, url, rawName) {
-  const auth = await authenticate(request, (key) => findTenantByKey(sql, key));
+  const auth = await authenticate(request, (key) => findActiveTenant(sql, key));
   if (auth.response) return auth.response;
 
   const name = decodeSegment(rawName);

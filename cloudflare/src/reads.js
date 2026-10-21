@@ -2,7 +2,7 @@
 // The answers are the same for every visitor of a shop, so each is kept at Cloudflare's edge for a few seconds
 // (CACHE_SECONDS, default 30): most page views never reach the database.
 
-import { decodeCursor, getAccessories, getAccessoryByCode, getCatalog, getFrameByCode, getFrames, getSiteInfo } from './db.js';
+import { decodeCursor, getAccessories, getAccessoryByCode, getCatalog, getFrameByCode, getFrames, getSiteInfo, isHostExpired } from './db.js';
 import { decodeSegment, json, malformedAddress } from './http.js';
 
 const MAX_LIMIT = 200;
@@ -58,15 +58,24 @@ async function cached(request, env, ctx, host, compute) {
   return response;
 }
 
+/**
+ * A shop whose licence has ended (its expiry day is set and past) shows nothing: 403 LICENSE_EXPIRED. Checked when an answer is made (a cached answer
+ * is kept for a few seconds only, so the site goes dark within CACHE_SECONDS); only a 200 is cached, so the refusal never is.
+ */
+async function licensed(sql, host, produce) {
+  if (await isHostExpired(sql, host)) return json({ error: "This shop's licence has expired.", code: 'LICENSE_EXPIRED' }, 403);
+  return produce();
+}
+
 export function catalogRoute(request, env, ctx, sql, host) {
-  return cached(request, env, ctx, host, async () => json(await getCatalog(sql, host)));
+  return cached(request, env, ctx, host, () => licensed(sql, host, async () => json(await getCatalog(sql, host))));
 }
 
 export function infosRoute(request, env, ctx, sql, host) {
-  return cached(request, env, ctx, host, async () => {
+  return cached(request, env, ctx, host, () => licensed(sql, host, async () => {
     const info = await getSiteInfo(sql, host);
     return info ? json(info) : json({ error: `No tenant configured for host "${host}".` }, 404);
-  });
+  }));
 }
 
 export function framesRoute(request, env, ctx, sql, host, url) {
@@ -77,36 +86,36 @@ export function framesRoute(request, env, ctx, sql, host, url) {
   if (!/^\d{1,9}$/.test(categoryId)) return json({ error: '"categoryId" must be a whole number.' }, 400);
   const paging = pagingOf(env, url);
   if (paging.error) return paging.error;
-  return cached(request, env, ctx, host, async () => {
+  return cached(request, env, ctx, host, () => licensed(sql, host, async () => {
     const result = await getFrames(sql, { host, brandId, categoryId: Number(categoryId), ...paging });
     return json(result.items, 200, listHeaders(result));
-  });
+  }));
 }
 
 export function accessoriesRoute(request, env, ctx, sql, host, url) {
   const paging = pagingOf(env, url);
   if (paging.error) return paging.error;
-  return cached(request, env, ctx, host, async () => {
+  return cached(request, env, ctx, host, () => licensed(sql, host, async () => {
     const result = await getAccessories(sql, { host, ...paging });
     return json(result.items, 200, listHeaders(result));
-  });
+  }));
 }
 
 export function frameRoute(request, env, ctx, sql, host, rawCode) {
   const code = decodeSegment(rawCode);
   if (code === null) return malformedAddress();
-  return cached(request, env, ctx, host, async () => {
+  return cached(request, env, ctx, host, () => licensed(sql, host, async () => {
     const frame = await getFrameByCode(sql, host, code);
     return frame ? json(frame) : json({ error: `No frame with the code "${code}" found.` }, 404);
-  });
+  }));
 }
 
 export function accessoryRoute(request, env, ctx, sql, host, rawCode) {
   const code = decodeSegment(rawCode);
   if (code === null) return malformedAddress();
-  return cached(request, env, ctx, host, async () => {
+  return cached(request, env, ctx, host, () => licensed(sql, host, async () => {
     const accessory = await getAccessoryByCode(sql, host, code);
     return accessory ? json(accessory) : json({ error: `No accessory with the code "${code}" found.` }, 404);
-  });
+  }));
 }
 

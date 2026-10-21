@@ -56,12 +56,6 @@
       "package.json",
       "build/icon.png"
     ],
-    "extraResources": [
-      {
-        "from": "resources/default-config.properties",
-        "to": "default-config.properties"
-      }
-    ],
     "asar": true,
     "asarUnpack": [
       "**/node_modules/better-sqlite3/**"

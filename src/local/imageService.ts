@@ -2,6 +2,7 @@ import { randomUUID } from "node:crypto";
 import fs from "node:fs/promises";
 import path from "node:path";
 import { requireServerUrl, requireTenantKey } from "../config";
+import { reportIfRefused } from "./licenseGuard";
 
 /**
  * Uploads photos of frames and accessories to the shop's server
@@ -173,6 +174,7 @@ async function upload(type: ProductType, code: string, data: Uint8Array | ArrayB
     const { message, details } = await serverError(response);
     switch (response.status) {
       case 401:
+        await reportIfRefused(401, details.code); // the server does not know this shop's key or its licence ended: an old expiry day is saved and the app closes
         throw new ImageUploadError("The server did not accept this shop's tenant key (tenant.key in the settings file).", "unauthorized", details);
       case 404:
         throw new ImageUploadError(message ?? `This shop has no ${type} "${code}".`, "not-found", details);

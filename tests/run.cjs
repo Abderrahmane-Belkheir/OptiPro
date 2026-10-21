@@ -18,6 +18,15 @@ const TESTS = [
   { file: "orderDetails.window.test.cjs", how: "node" },
   { file: "i18n.dictionary.test.cjs", how: "node" },
   { file: "i18n.window.test.cjs", how: "node" },
+  { file: "setup.window.test.cjs", how: "node" },
+  { file: "editMenu.test.cjs", how: "node" },
+  { file: "setupRetry.test.cjs", how: "node" },
+  { file: "refusalPaths.test.cjs", how: "node" },
+  { file: "expiry.window.test.cjs", how: "node" },
+  { file: "refusal.test.cjs", how: "node" },
+  { file: "expiryCheck.test.cjs", how: "node" },
+  { file: "licenseExpiry.test.cjs", how: "node" },
+  { file: "register.test.cjs", how: "node" },
 ];
 
 const filter = process.argv[2] ?? "";

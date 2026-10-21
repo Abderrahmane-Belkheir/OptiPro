@@ -1,0 +1,91 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <!-- The page only ever loads its own files: no network, no inline script or style. -->
+  <meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'self'; style-src 'self'; img-src 'self' data:; font-src 'self'">
+  <title>OptiPro setup</title>
+  <link rel="stylesheet" href="styles/fonts.css">
+  <link rel="stylesheet" href="styles/tokens.css">
+  <link rel="stylesheet" href="styles/global.css">
+  <link rel="stylesheet" href="styles/components.css">
+  <link rel="stylesheet" href="styles/setup.css">
+</head>
+<body class="setup-body">
+  <main class="setup" aria-labelledby="setup-title">
+    <div class="setup__languages" translate="no" role="group" aria-label="Language">
+      <button class="setup__language" type="button" data-lang="en" aria-checked="false">English</button>
+      <button class="setup__language" type="button" data-lang="fr" aria-checked="false">Français</button>
+      <button class="setup__language" type="button" data-lang="ar" aria-checked="false" lang="ar">العربية</button>
+    </div>
+
+    <header class="setup__header">
+      <h1 class="setup__title" id="setup-title">Set up your shop</h1>
+      <p class="setup__intro">The settings file is missing or incomplete, so the app cannot start yet. Enter the shop's key, its server address and its details.</p>
+    </header>
+
+    <form class="setup__form" id="setup-form" novalidate>
+      <fieldset class="setup__group">
+        <legend class="setup__legend">Connection</legend>
+        <label class="field">
+          <span class="field__label">Tenant key <span class="field__required" aria-hidden="true">*</span></span>
+          <input class="input" id="tenant-key" name="tenantKey" type="text" autocomplete="off" spellcheck="false" placeholder="0ad726ca55c3479787fe5b22f4d5d035" required>
+          <span class="field__hint">Identifies the shop to the server.</span>
+        </label>
+        <label class="field">
+          <span class="field__label">Server URL <span class="field__required" aria-hidden="true">*</span></span>
+          <input class="input" id="server-url" name="serverUrl" type="url" autocomplete="off" spellcheck="false" placeholder="https://your-shop.pages.dev" required>
+          <span class="field__hint">Where the app sends its data and photos, https://, no trailing slash.</span>
+        </label>
+      </fieldset>
+
+      <fieldset class="setup__group">
+        <legend class="setup__legend">The shop</legend>
+        <label class="field">
+          <span class="field__label">Shop name <span class="field__required" aria-hidden="true">*</span></span>
+          <input class="input" id="shop-name" name="name" type="text" autocomplete="organization" placeholder="Maison Clair" required>
+        </label>
+        <div class="setup__row">
+          <label class="field">
+            <span class="field__label">Phone <span class="field__hint">Optional</span></span>
+            <input class="input" id="shop-phone" name="phone" type="tel" autocomplete="tel" placeholder="+213 550 00 00 00">
+          </label>
+          <label class="field">
+            <span class="field__label">Email <span class="field__hint">Optional</span></span>
+            <input class="input" id="shop-email" name="email" type="email" autocomplete="email" placeholder="hello@maison-clair.example.com">
+          </label>
+        </div>
+        <label class="field">
+          <span class="field__label">Address <span class="field__hint">Optional</span></span>
+          <input class="input" id="shop-address" name="address" type="text" autocomplete="street-address" placeholder="12 Rue Didouche Mourad, Algiers">
+        </label>
+      </fieldset>
+
+      <fieldset class="setup__group">
+        <legend class="setup__legend">Social networks</legend>
+        <div class="setup__row">
+          <label class="field">
+            <span class="field__label">Instagram <span class="field__hint">Optional</span></span>
+            <input class="input" id="shop-instagram" name="instagramUrl" type="url" autocomplete="off" spellcheck="false" placeholder="https://instagram.com/yourshop">
+          </label>
+          <label class="field">
+            <span class="field__label">TikTok <span class="field__hint">Optional</span></span>
+            <input class="input" id="shop-tiktok" name="tiktokUrl" type="url" autocomplete="off" spellcheck="false" placeholder="https://tiktok.com/@yourshop">
+          </label>
+        </div>
+      </fieldset>
+
+      <p class="setup__status" id="setup-status" role="status" aria-live="polite" hidden></p>
+      <div class="setup__actions">
+        <button class="btn btn--primary" id="setup-confirm" type="submit">Confirm</button>
+      </div>
+    </form>
+  </main>
+
+  <script src="i18n.js"></script>
+  <script src="i18n/fr.js"></script>
+  <script src="i18n/ar.js"></script>
+  <script src="setup.js"></script>
+</body>
+</html>

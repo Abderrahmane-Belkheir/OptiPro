@@ -62,6 +62,8 @@ then `npm run dev` and open http://localhost:8788. `DEV_HOST` stands in for the 
 | `GET /api/images/:id` | a photo (from R2); public |
 | `POST /api/images/:code/:id?type=frame\|accessory` | upload a photo (`Authorization: Bearer <tenant key>`, body = the file, at most 5 MB) |
 | `DELETE /api/images/:id` | delete a photo (tenant key) |
+| `POST /api/register` | the shop sends its information (`Authorization: Bearer <tenant key>`, body `{ name, phone?, email?, address?, instagramUrl?, tiktokUrl? }`, at most 16 KB) and its `tenants` row is updated. A shop registers **once**: the key must have a valid format, exist **and its `tenants.expiry` must still be empty**; otherwise `401 UNAUTHORIZED`, the same answer for a key that does not exist, one that is already registered and an expired one. The same request sets `expiry` to **today + 14 days** (UTC), and the answer carries it (`"YYYY-MM-DD"`). `name` is required, the rest optional (`null` clears); the shop's `host` is never changed by it (sending it is `400 UNKNOWN_FIELD`); `400 INVALID_BODY / UNKNOWN_FIELD / MISSING_FIELD / INVALID_FIELD`. Answers `{ registered: true, tenant, expiry }`. The table API (`/api/table`) checks the key's existence **and** that it is not expired (a key whose expiry is still empty, never registered, is refused there too: `401 UNAUTHORIZED`); a photo **upload** (`POST /api/images/…`) applies it too; deleting a photo (`DELETE /api/images/:id`) still checks only that the key exists. |
+| `GET /api/expiry` | the day the shop's licence ends: `200 { "expiry": "YYYY-MM-DD" }` (`Authorization: Bearer <tenant key>`); `401 UNAUTHORIZED`, the same answer for an unknown key, a key in the wrong format, a never-registered key (empty `expiry`) and an expired key |
 | `POST /api/table/:name?action=insert\|update\|delete` | the table API (tenant key): deleting a frame or an accessory (or a photo row) also removes its photos' files from R2 |
 
 **Lists are paged.** A list answers at most `LIST_LIMIT` items (200). `X-Total-Count` says how many there are in all and
@@ -78,6 +80,8 @@ can take that long to show) · `IMAGE_MAX_BYTES` (5 MB) · `DEV_HOST` (local tes
 The `DATABASE_URL` role must be able to: `SELECT` on `tenants`, `categories`, `brands`, `frames`, `accessories`, `product_images`;
 `INSERT` and `DELETE` on `product_images`; `DELETE` on `frames` and `accessories`. It needs **no** `UPDATE` (the delete is one
 statement and takes no row lock).
+
+`POST /api/register` also needs `UPDATE` on the shop's own row of `tenants` (columns `name, phone, email, address, instagram_url, tiktok_url, expiry`) and `SELECT` on `tenants`; with row-level security on `tenants`, an `UPDATE` policy too (`create_tenant()` makes both: the login may update only its own row, only while its expiry is empty, and only to a day within 14 days from today); for example `GRANT UPDATE (name, phone, email, address, instagram_url, tiktok_url, expiry) ON tenants TO <the role>;` and, if row-level security is on for `tenants`, an `UPDATE` policy for the shop's own row.
 
 `create_tenant()` (backend/prisma/create_tenant.sql) makes exactly such a login for every new shop, named `backend_tenant_<key>` with the
 tenant key as its password: it does **not** bypass row-level security, has only those privileges, and each is limited by a policy to

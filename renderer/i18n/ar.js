@@ -651,4 +651,42 @@ I18N.register("ar", {
   "Delete “{0}”? It is removed from this computer and from the server. This cannot be undone.": "حذف «{0}»؟ سيُزال من هذا الحاسوب ومن الخادم. لا يمكن التراجع عن ذلك.",
   "Delete “{0}” and its {1} photo? It is removed from this computer and from the server. This cannot be undone.": "حذف «{0}» وصورته ({1})؟ سيُزال من هذا الحاسوب ومن الخادم. لا يمكن التراجع عن ذلك.",
   "Delete “{0}” and its {1} photos? It is removed from this computer and from the server. This cannot be undone.": "حذف «{0}» وصوره ({1})؟ سيُزال من هذا الحاسوب ومن الخادم. لا يمكن التراجع عن ذلك.",
+
+  // ---- Setup page
+  "OptiPro setup": "إعداد OptiPro",
+  "Set up your shop": "قم بإعداد متجرك",
+  "The settings file is missing or incomplete, so the app cannot start yet. Enter the shop's key, its server address and its details.": "ملف الإعدادات مفقود أو غير مكتمل، لذا لا يمكن تشغيل التطبيق بعد. أدخل مفتاح المتجر وعنوان خادمه ومعلوماته.",
+  "Connection": "الاتصال",
+  "Tenant key": "مفتاح المتجر (tenant)",
+  "Identifies the shop to the server.": "يعرّف المتجر لدى الخادم.",
+  "Server URL": "عنوان الخادم",
+  "Where the app sends its data and photos, https://, no trailing slash.": "الجهة التي يرسل إليها التطبيق بياناته وصوره، https://، دون شرطة مائلة في النهاية.",
+  "The shop": "المتجر",
+  "Shop name": "اسم المتجر",
+  "Social networks": "شبكات التواصل الاجتماعي",
+  "Instagram": "Instagram",
+  "TikTok": "TikTok",
+  "Confirm": "تأكيد",
+
+  // ---- Setup page: messages
+  "Activating… this can take a moment on a slow connection.": "جارٍ التفعيل… قد يستغرق هذا بعض الوقت إذا كان الاتصال بطيئًا.",
+  "Activated. Starting the app…": "تم التفعيل. جارٍ تشغيل التطبيق…",
+  "Enter the tenant key.": "أدخل مفتاح المتجر.",
+  "The tenant key may only contain letters, digits, dots, dashes and underscores.": "يجب أن يحتوي مفتاح المتجر على أحرف وأرقام ونقاط وشرطات وشرطات سفلية فقط.",
+  "Enter the server address.": "أدخل عنوان الخادم.",
+  "The server address must be a web address starting with https:// (or http://).": "يجب أن يكون عنوان الخادم عنوان ويب يبدأ بـ https:// (أو http://).",
+  "Enter the shop's name.": "أدخل اسم المتجر.",
+  "The server did not accept the tenant key. Check the key and the server address, then try again.": "لم يقبل الخادم مفتاح المتجر. تحقق من المفتاح وعنوان الخادم ثم حاول مجددًا.",
+  "Too many attempts. Wait a few minutes, then try again.": "محاولات كثيرة جدًا. انتظر بضع دقائق ثم حاول مجددًا.",
+  "The server can't be reached. Check the internet connection and the server address, then try again.": "تعذّر الوصول إلى الخادم. تحقق من اتصال الإنترنت وعنوان الخادم ثم حاول مجددًا.",
+  "The server could not complete the activation. Try again in a moment.": "تعذّر على الخادم إكمال التفعيل. حاول مجددًا بعد قليل.",
+  "The app could not complete the activation. Try again.": "تعذّر على التطبيق إكمال التفعيل. حاول مجددًا.",
+  "The server did not accept the shop's details.": "لم يقبل الخادم معلومات المتجر.",
+  "The settings file could not be written.": "تعذّرت كتابة ملف الإعدادات.",
+
+  // ---- Licence expired
+  "OptiPro licence expired": "انتهت صلاحية ترخيص OptiPro",
+  "Your licence has expired": "انتهت صلاحية ترخيصك",
+  "This copy of OptiPro can no longer be used. Its licence has ended. Please contact support to renew it.": "لم يعد بالإمكان استخدام هذه النسخة من OptiPro. انتهى ترخيصها. يرجى التواصل مع الدعم لتجديده.",
+  "The server no longer accepts this copy of OptiPro. Please contact support.": "لم يعد الخادم يقبل هذه النسخة من OptiPro. يرجى التواصل مع الدعم.",
 });

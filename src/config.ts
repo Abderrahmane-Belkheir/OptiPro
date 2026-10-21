@@ -54,109 +54,10 @@ function parseProperties(text: string): Map<string, string> {
   return properties;
 }
 
-/** Only the app's real settings location is filled in from the defaults; a file named by OPTIPRO_CONFIG_FILE (tests) never is. */
-function usesStandardLocation(): boolean {
-  return !process.env.OPTIPRO_CONFIG_FILE?.trim();
-}
-
-/** The name of the settings built into the app: a resource file shipped with it (resources/default-config.properties). */
-export const DEFAULTS_FILE_NAME = "default-config.properties";
-
 /**
- * Where the built-in settings are looked for, first match wins:
- *   1. OPTIPRO_DEFAULTS_FILE, when set (tests): only that file;
- *   2. <resources folder of the installed app>/default-config.properties  (electron-builder: extraResources, next to app.asar);
- *   3. <app folder>/resources/default-config.properties  (running from the project with `electron .`, or inside the app.asar).
- */
-function defaultsFileCandidates(): string[] {
-  const override = process.env.OPTIPRO_DEFAULTS_FILE?.trim();
-  if (override) return [override];
-  const installed = (process as NodeJS.Process & { resourcesPath?: string }).resourcesPath;
-  return [...(installed ? [path.join(installed, DEFAULTS_FILE_NAME)] : []), path.join(__dirname, "..", "resources", DEFAULTS_FILE_NAME)];
-}
-
-interface BuiltInSettings {
-  tenantKey: string;
-  serverUrl: string;
-}
-
-/** The built-in settings, or null when there is no such file or it holds no tenant.key (the fallback is then off). */
-function loadBuiltInSettings(): BuiltInSettings | null {
-  for (const file of defaultsFileCandidates()) {
-    try {
-      const parsed = parseProperties(fs.readFileSync(file, "utf8"));
-      const tenantKey = parsed.get("tenant.key")?.trim();
-      if (tenantKey) return { tenantKey, serverUrl: parsed.get("server.url")?.trim() ?? "" };
-    } catch {
-      // not there or not readable: try the next place
-    }
-  }
-  return null;
-}
-
-/** The text of a settings file made from the settings built into the app, or null when there are none (see loadBuiltInSettings). */
-function defaultConfigText(): string | null {
-  const builtIn = loadBuiltInSettings();
-  if (!builtIn) return null;
-  return [
-    "# OptiPro settings.",
-    "# This file was created automatically the first time the app started without one, from the settings built into the app.",
-    "# The app reads it on every start: edit it to change a setting.",
-    "",
-    "# What identifies the shop to the server.",
-    `tenant.key=${builtIn.tenantKey}`,
-    "",
-    "# The address of the shop's server (where the website and the API live), https://..., no trailing slash.",
-    `server.url=${builtIn.serverUrl}`,
-    "",
-  ].join("\n");
-}
-
-/**
- * Makes the settings file from the built-in defaults when it does not exist, and says what it is. Returns the text the
- * file now holds (the defaults', or another process's if it created the file a moment earlier), or null when nothing
- * can be done: the file is somewhere other than the standard location, or the built-in settings hold no tenant.key.
- * It never throws: when the file cannot be written (a read-only folder, say) the defaults are still returned, so the
- * app runs on them and tries to write the file again on its next start.
- */
-function createConfigFromDefaults(file: string): string | null {
-  if (!usesStandardLocation()) return null;
-  const text = defaultConfigText();
-  if (text === null) return null;
-  try {
-    fs.mkdirSync(path.dirname(file), { recursive: true });
-    fs.writeFileSync(file, text, { encoding: "utf8", flag: "wx", mode: 0o600 }); // "wx": never overwrites a file that appeared meanwhile
-    console.info(`[config] ${file} was not found: created it from the settings built into the app.`);
-  } catch (err) {
-    if ((err as NodeJS.ErrnoException).code === "EEXIST") {
-      try {
-        return fs.readFileSync(file, "utf8"); // someone else just created it: use theirs
-      } catch {
-        return text;
-      }
-    }
-    console.warn(`[config] ${file} was not found and could not be created (${(err as Error).message}); running on the settings built into the app.`);
-  }
-  return text;
-}
-
-/**
- * Called first thing at start-up (main.ts): looks for the settings file in its place (<app data>/OptiPro/config.properties)
- * and, when it is not there, creates it from the settings built into the app (resources/default-config.properties), so the next start finds
- * the file directly. A file that exists is never touched. Never throws and never needs the network.
- */
-export function ensureConfigFile(): { file: string; existed: boolean; created: boolean } {
-  const file = configFilePath();
-  if (fs.existsSync(file)) return { file, existed: true, created: false };
-  createConfigFromDefaults(file);
-  return { file, existed: false, created: fs.existsSync(file) };
-}
-
-/**
- * Reads the settings file on every call — it's tiny, and it means an edit takes effect without a
- * restart. If the file does not exist it is created from the settings built into the app (see createConfigFromDefaults),
- * which are used for this call. Nothing in the file is required here (`tenant.key` and `server.url` are checked by
- * requireTenantKey / requireServerUrl where they are needed); a file that cannot be found or read throws a ConfigError.
+ * Reads the settings file on every call — it's tiny, and it means an edit takes effect without a restart. Nothing in the file is required here
+ * (`tenant.key` and `server.url` are checked by requireTenantKey / requireServerUrl where they are needed, and by configProblem at start-up);
+ * a file that cannot be found or read throws a ConfigError.
  */
 export function getConfig(): AppConfig {
   const file = configFilePath();
@@ -166,13 +67,9 @@ export function getConfig(): AppConfig {
     text = fs.readFileSync(file, "utf8");
   } catch (err) {
     if ((err as NodeJS.ErrnoException).code === "ENOENT") {
-      const created = createConfigFromDefaults(file);
-      if (created === null) {
-        throw new ConfigError(
+      throw new ConfigError(
           `Settings file not found: ${file}\nCreate it with these lines:\n  tenant.key=<your tenant key>\n  server.url=https://your-domain.com`,
-        );
-      }
-      text = created;
+      );
     } else {
       throw new ConfigError(`Cannot read the settings file ${file}: ${(err as Error).message}`);
     }
@@ -211,4 +108,54 @@ export function requireServerUrl(): string {
 ${hint}`);
   }
   return serverUrl;
+}
+
+/** What is wrong with the settings file that stops the app from starting: it is missing, cannot be read, or lacks tenant.key or server.url. */
+export type ConfigProblem = "missing" | "unreadable" | "no-tenant-key" | "no-server-url";
+
+/**
+ * Looks at the settings file without creating or changing anything: null when it exists and holds both a tenant.key and a server.url,
+ * otherwise the first thing that is wrong. The app does not start while there is a problem: it shows the setup page instead.
+ */
+export function configProblem(): ConfigProblem | null {
+  const file = configFilePath();
+  let text: string;
+  try {
+    text = fs.readFileSync(file, "utf8");
+  } catch (err) {
+    return (err as NodeJS.ErrnoException).code === "ENOENT" ? "missing" : "unreadable";
+  }
+  const parsed = parseProperties(text);
+  if (!parsed.get("tenant.key")) return "no-tenant-key";
+  if (!parsed.get("server.url")) return "no-server-url";
+  return null;
+}
+
+/**
+ * Writes tenant.key and server.url into the settings file (creating the folder and the file when they are missing). Other lines of an
+ * existing file (label size, printer, comments) are kept; the two settings are replaced when present and added when not. The file is made
+ * readable by its owner only, since the tenant key is a secret. Throws a ConfigError when it cannot be written.
+ */
+export function saveSettings(settings: { tenantKey: string; serverUrl: string }): void {
+  const file = configFilePath();
+  let lines: string[] = [];
+  try {
+    lines = fs.readFileSync(file, "utf8").replace(/^﻿/, "").split(/\r?\n/);
+    if (lines[lines.length - 1] === "") lines.pop();
+  } catch {
+    lines = ["# OptiPro settings. Written by the setup on the first run; the app reads this file on every start."];
+  }
+  const put = (key: string, value: string) => {
+    const at = lines.findIndex((line) => line.split("=")[0].trim() === key && !line.trim().startsWith("#"));
+    if (at >= 0) lines[at] = `${key}=${value}`;
+    else lines.push(`${key}=${value}`);
+  };
+  put("tenant.key", settings.tenantKey);
+  put("server.url", settings.serverUrl.replace(/\/+$/, ""));
+  try {
+    fs.mkdirSync(path.dirname(file), { recursive: true });
+    fs.writeFileSync(file, lines.join("\n") + "\n", { encoding: "utf8", mode: 0o600 });
+  } catch (err) {
+    throw new ConfigError(`The settings file ${file} could not be written: ${(err as Error).message}`);
+  }
 }

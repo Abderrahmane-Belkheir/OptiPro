@@ -652,4 +652,42 @@ I18N.register("fr", {
   "Delete “{0}”? It is removed from this computer and from the server. This cannot be undone.": "Supprimer « {0} » ? Il est retiré de cet ordinateur et du serveur. Action irréversible.",
   "Delete “{0}” and its {1} photo? It is removed from this computer and from the server. This cannot be undone.": "Supprimer « {0} » et sa photo ({1}) ? Il est retiré de cet ordinateur et du serveur. Action irréversible.",
   "Delete “{0}” and its {1} photos? It is removed from this computer and from the server. This cannot be undone.": "Supprimer « {0} » et ses {1} photos ? Il est retiré de cet ordinateur et du serveur. Action irréversible.",
+
+  // ---- Setup page
+  "OptiPro setup": "Configuration d'OptiPro",
+  "Set up your shop": "Configurez votre boutique",
+  "The settings file is missing or incomplete, so the app cannot start yet. Enter the shop's key, its server address and its details.": "Le fichier de réglages est absent ou incomplet : l'application ne peut pas encore démarrer. Saisissez la clé de la boutique, l'adresse de son serveur et ses informations.",
+  "Connection": "Connexion",
+  "Tenant key": "Clé de la boutique (tenant)",
+  "Identifies the shop to the server.": "Identifie la boutique auprès du serveur.",
+  "Server URL": "Adresse du serveur",
+  "Where the app sends its data and photos, https://, no trailing slash.": "Où l'application envoie ses données et ses photos, https://, sans « / » final.",
+  "The shop": "La boutique",
+  "Shop name": "Nom de la boutique",
+  "Social networks": "Réseaux sociaux",
+  "Instagram": "Instagram",
+  "TikTok": "TikTok",
+  "Confirm": "Confirmer",
+
+  // ---- Setup page: messages
+  "Activating… this can take a moment on a slow connection.": "Activation… cela peut prendre un moment si la connexion est lente.",
+  "Activated. Starting the app…": "Activé. Démarrage de l'application…",
+  "Enter the tenant key.": "Saisissez la clé de la boutique.",
+  "The tenant key may only contain letters, digits, dots, dashes and underscores.": "La clé de la boutique ne peut contenir que des lettres, des chiffres, des points, des tirets et des tirets bas.",
+  "Enter the server address.": "Saisissez l'adresse du serveur.",
+  "The server address must be a web address starting with https:// (or http://).": "L'adresse du serveur doit être une adresse web commençant par https:// (ou http://).",
+  "Enter the shop's name.": "Saisissez le nom de la boutique.",
+  "The server did not accept the tenant key. Check the key and the server address, then try again.": "Le serveur n'a pas accepté la clé de la boutique. Vérifiez la clé et l'adresse du serveur, puis réessayez.",
+  "Too many attempts. Wait a few minutes, then try again.": "Trop de tentatives. Attendez quelques minutes, puis réessayez.",
+  "The server can't be reached. Check the internet connection and the server address, then try again.": "Le serveur est injoignable. Vérifiez la connexion internet et l'adresse du serveur, puis réessayez.",
+  "The server could not complete the activation. Try again in a moment.": "Le serveur n'a pas pu terminer l'activation. Réessayez dans un instant.",
+  "The app could not complete the activation. Try again.": "L'application n'a pas pu terminer l'activation. Réessayez.",
+  "The server did not accept the shop's details.": "Le serveur n'a pas accepté les informations de la boutique.",
+  "The settings file could not be written.": "Le fichier de réglages n'a pas pu être écrit.",
+
+  // ---- Licence expired
+  "OptiPro licence expired": "Licence OptiPro expirée",
+  "Your licence has expired": "Votre licence a expiré",
+  "This copy of OptiPro can no longer be used. Its licence has ended. Please contact support to renew it.": "Cette copie d'OptiPro ne peut plus être utilisée. Sa licence est terminée. Veuillez contacter le support pour la renouveler.",
+  "The server no longer accepts this copy of OptiPro. Please contact support.": "Le serveur n'accepte plus cette copie d'OptiPro. Veuillez contacter le support.",
 });

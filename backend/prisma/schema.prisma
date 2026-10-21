@@ -95,6 +95,8 @@ model Tenant {
   phone        String?
   email        String?
   address      String?
+  /// The last day the shop's licence is valid (null: no limit). POST /api/register answers 401 once it is past.
+  expiry       DateTime? @db.Date
 
   brands        Brand[]
   frames        Frame[]

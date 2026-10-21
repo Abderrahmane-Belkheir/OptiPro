@@ -30,11 +30,12 @@ function runScript(box, source) {
 const freePort = () => new Promise((resolve) => { const s = net.createServer().listen(0, "127.0.0.1", () => { const p = s.address().port; s.close(() => resolve(p)); }); });
 
 /** Starts the app on the sandbox and answers { val, until, stop, problems }. `val(expr)` evaluates a JS expression in the page and returns its JSON value. */
-async function launchApp(box, extraEnv = {}) {
+async function launchApp(box, extraEnv = {}, page = /renderer[\\/]index\.html/) {
   const port = await freePort();
   const env = { ...process.env, SQLITE_DATABASE_URL: box.db, OPTIPRO_CONFIG_FILE: box.config, OPTIPRO_IMAGES_DIR: box.images, OPTIPRO_LABEL_PDF_DIR: box.pdf, ...extraEnv };
   delete env.ELECTRON_RUN_AS_NODE;
-  const app = spawn(ELECTRON, [".", `--remote-debugging-port=${port}`, "--disable-features=CalculateNativeWinOcclusion"], { cwd: ROOT, env, stdio: ["ignore", "pipe", "pipe"] });
+  const app = spawn(ELECTRON, [".", `--remote-debugging-port=${port}`, `--user-data-dir=${path.join(box.dir, "electron-profile")}`, // (its own profile: the tests never read or change the real app's saved settings, such as its language)
+     "--disable-features=CalculateNativeWinOcclusion"], { cwd: ROOT, env, stdio: ["ignore", "pipe", "pipe"] });
   let log = "";
   app.stdout.on("data", (d) => (log += d));
   app.stderr.on("data", (d) => (log += d));
@@ -42,7 +43,7 @@ async function launchApp(box, extraEnv = {}) {
   let wsUrl;
   for (let i = 0; i < 100 && !wsUrl; i++) {
     try {
-      wsUrl = (await (await fetch(`http://127.0.0.1:${port}/json`)).json()).find((t) => t.type === "page" && /renderer[\\/]index\.html/.test(t.url))?.webSocketDebuggerUrl;
+      wsUrl = (await (await fetch(`http://127.0.0.1:${port}/json`, { signal: AbortSignal.timeout(1500) })).json()).find((t) => t.type === "page" && page.test(t.url))?.webSocketDebuggerUrl;
     } catch {
       /* not up yet */
     }
@@ -51,7 +52,18 @@ async function launchApp(box, extraEnv = {}) {
   if (!wsUrl) throw new Error(`the app window did not open: ${log.slice(-400)}`);
 
   const ws = new WebSocket(wsUrl);
-  await new Promise((resolve) => (ws.onopen = resolve));
+  // (an app that closes itself before the connection opens must not leave the test waiting for ever)
+  try {
+    await new Promise((resolve, reject) => {
+      ws.onopen = resolve;
+      ws.onerror = () => reject(new Error("the app closed before the test could connect to it"));
+      ws.onclose = () => reject(new Error("the app closed before the test could connect to it"));
+      setTimeout(() => reject(new Error("the test could not connect to the app in time")), 8000);
+    });
+  } catch (error) {
+    try { execSync(`taskkill /F /T /PID ${app.pid}`, { stdio: "ignore" }); } catch { /* already gone */ }
+    throw error;
+  }
   let id = 0;
   const pending = new Map();
   const problems = [];
@@ -91,7 +103,7 @@ async function launchApp(box, extraEnv = {}) {
     try { execSync(`taskkill /F /T /PID ${app.pid}`, { stdio: "ignore" }); } catch { /* already gone */ }
     await sleep(600);
   };
-  return { val, until, stop, problems, log: () => log };
+  return { val, until, stop, problems, port, log: () => log };
 }
 
 /** A tiny test runner: `ck(ok, label, detail)` records and prints; `done()` prints the total and answers the exit code. */

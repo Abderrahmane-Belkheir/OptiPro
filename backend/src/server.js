@@ -8,6 +8,9 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { createImageByIdHandler, createImageFileRouter, createImageRouter, IMAGES_URL_PREFIX, removePhotoFiles } from './lib/imageUpload.js';
 import { createTableApiRouter } from './lib/tableApi.js';
+import { createRegisterRouter } from './lib/registerApi.js';
+import { createLicenseGate } from './lib/licenseGate.js';
+import { createExpiryRouter } from './lib/expiryApi.js';
 import { deleteProductImage, insertProductImage, productImageExists } from './lib/productImageStore.js';
 import { prisma } from './lib/prismaClient.js';
 import { resolveTenantKeyByHost, warnIfRlsDisabled, withTenant } from './lib/tenantContext.js';
@@ -44,6 +47,22 @@ app.use((req, res, next) => {
   next();
 });
 
+// The tenant with this key whose licence is running (the `expiry` column: its last valid day), or null. A key that does not exist, one that was never
+// registered (empty expiry: only POST /api/register accepts that) and one whose expiry is past all give the same answer. Used by the table API and by photo uploads.
+const findActiveTenant = async (key) => {
+  const rows = await prisma.$queryRawUnsafe(
+    "SELECT key, expiry FROM tenants WHERE key = $1 AND expiry IS NOT NULL AND expiry::date >= (now() AT TIME ZONE 'UTC')::date",
+    key,
+  );
+  return rows[0] ?? null;
+};
+
+// The tenant with this key that has never been registered (its `expiry` is still empty), or null. Used by POST /api/register.
+const findUnregisteredTenant = async (key) => {
+  const rows = await prisma.$queryRawUnsafe('SELECT key FROM tenants WHERE key = $1 AND expiry IS NULL', key);
+  return rows[0] ?? null;
+};
+
 // POST /api/images/<code>/<id>?type=frame|accessory -> { id, url, type, code, size, contentType }
 // A shop uploads a photo for one of its frames or accessories: <code> is that product's id, <id> the
 // photo's id (a UUID the client makes up). Authenticated with the shop's tenant key (Authorization:
@@ -58,11 +77,25 @@ app.use(
   createImageRouter({
     imagesDir,
     findTenantByKey: (key) => prisma.tenant.findUnique({ where: { key }, select: { key: true } }),
+    findActiveTenant,
     productImageExists,
     insertProductImage,
     deleteProductImage,
   }),
 );
+
+// POST /api/register (Authorization: Bearer <tenant key>, body: the shop's information): updates the shop's row of the tenants table and sets its
+// expiry to today + 14 days. The key must exist and its expiry must still be empty (a shop registers once), otherwise 401 UNAUTHORIZED. See lib/registerApi.js.
+app.use(
+  '/api/register',
+  createRegisterRouter({
+    findUnregisteredTenant,
+    query: (text, params) => prisma.$queryRawUnsafe(text, ...params),
+  }),
+);
+
+// GET /api/expiry (Authorization: Bearer <tenant key>) -> { expiry: "YYYY-MM-DD" } for a key whose licence is running, otherwise 401 UNAUTHORIZED. See lib/expiryApi.js.
+app.use('/api/expiry', createExpiryRouter({ findActiveTenant }));
 
 // POST /api/table/<name>?action=insert|update|delete (Authorization: Bearer <tenant key>): the table API the desktop app
 // writes its rows through. It checks the key, the table and the action (the map in lib/tableApi.js), reads the JSON body and
@@ -71,7 +104,7 @@ app.use(
 app.use(
   '/api/table',
   createTableApiRouter({
-    findTenantByKey: (key) => prisma.tenant.findUnique({ where: { key }, select: { key: true } }),
+    findActiveTenant,
     runQuery: (tenantKey, text, params) => withTenant(tenantKey, (tx) => tx.$queryRawUnsafe(text, ...params)),
     removeFiles: async (photoIds) => {
       const failed = [];
@@ -85,6 +118,15 @@ app.use(
       }
       return failed;
     },
+  }),
+);
+
+// The website's reads show nothing for a shop whose licence has ended (403 LICENSE_EXPIRED); a shop with no expiry set yet is shown. See lib/licenseGate.js.
+app.use(
+  ['/api/catalog', '/api/frames', '/api/accessories', '/api/infos'],
+  createLicenseGate({
+    isHostExpired: async (host) =>
+      (await prisma.$queryRawUnsafe("SELECT 1 AS expired FROM tenants WHERE host = $1 AND expiry IS NOT NULL AND expiry::date < (now() AT TIME ZONE 'UTC')::date", host)).length > 0,
   }),
 );
 

@@ -1,4 +1,5 @@
 import { requireServerUrl, requireTenantKey } from "../config";
+import { reportIfRefused } from "./licenseGuard";
 
 /**
  * The client of the server's table API: POST <server.url>/api/table/<name>?action=insert|update|delete with the shop's tenant
@@ -109,6 +110,7 @@ async function send(table: string, action: TableAction, body: unknown): Promise<
   }
   switch (response.status) {
     case 401:
+      await reportIfRefused(401, code); // the server does not know this shop's key or its licence ended: an old expiry day is saved and the app closes
       return failure(401, code, "The server did not accept this shop's tenant key (tenant.key in the settings file).", true);
     case 429:
       return failure(429, code, typeof answer?.error === "string" ? answer.error : "Too many failed attempts. Try again in a few minutes.", true);

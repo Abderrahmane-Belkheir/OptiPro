@@ -10,6 +10,8 @@
 //   GET    /api/images/:id                       a photo (from R2)
 //   POST   /api/images/:code/:id?type=frame|accessory     upload a photo           (Authorization: Bearer <tenant key>)
 //   DELETE /api/images/:id                                delete a photo           (same)
+//   POST   /api/register                                  the shop sends its information; the tenants row is updated (Authorization: Bearer <tenant key>, which must exist and not be expired)
+//   GET    /api/expiry                                    the day the shop's licence ends: { expiry: "YYYY-MM-DD" } (Authorization: Bearer <tenant key>; 401 UNAUTHORIZED for an unknown, malformed, never registered or expired key)
 //   POST   /api/table/:name?action=insert|update|delete   the table API: writes rows (same); deleting a frame or an accessory (or a photo row) also removes its photos' files from R2
 //
 // Bindings: DATABASE_URL (secret, Neon connection string), IMAGES (R2 bucket). Settings (optional): LIST_LIMIT,
@@ -20,6 +22,8 @@ import { apiError, CORS, json } from './http.js';
 import { isIpAddress } from './rules.js';
 import { deletePhoto, getPhoto, uploadPhoto } from './photos.js';
 import { tableRoute } from './tableApi.js';
+import { registerRoute } from './register.js';
+import { expiryRoute } from './expiry.js';
 import { accessoriesRoute, accessoryRoute, catalogRoute, framesRoute, frameRoute, infosRoute } from './reads.js';
 
 const METHODS_FOR = (allowed) => ({ Allow: allowed.join(', ') });
@@ -77,6 +81,12 @@ export function createWorker({ makeSql = defaultSql } = {}) {
             }
             if (request.method === 'POST') return uploadPhoto(request, env, sql, url, first, second);
             return apiError(405, 'METHOD_NOT_ALLOWED', `${request.method} is not allowed here: upload with POST /api/images/<code>/<id>?type=frame|accessory.`, { allowed: ['POST'] }, METHODS_FOR(['POST']));
+          case 'register':
+            if (first !== undefined) break;
+            return request.method === 'POST' ? registerRoute(request, env, sql) : notAllowed('POST');
+          case 'expiry':
+            if (first !== undefined) break;
+            return request.method === 'GET' ? expiryRoute(request, sql) : notAllowed('GET');
           case 'table':
             if (first === undefined || second !== undefined) break;
             return request.method === 'POST' ? tableRoute(request, env, sql, url, first) : notAllowed('POST');

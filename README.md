@@ -26,7 +26,7 @@ Shop management for opticians: a **Windows desktop app** (Electron) that keeps w
 | `backend/` | **The server, classic version.** The same API as an Express app on Node, with Prisma and Postgres. |
 | `scripts/` | Build helpers (generate the local database, check the sync order, generate the table-API column lists, make the demo icon, extract the texts to translate). |
 | `tests/` | Automated tests (labels, orders, payments, order page, languages). |
-| `build/`, `resources/` | The app's icon, and the settings built into the installer. |
+| `build/` | The app's icon. |
 
 ### Backend vs Cloudflare: what is the difference?
 
@@ -77,13 +77,12 @@ Not built yet: placing an order (the *New order* form is UI only), invoices and 
 
 ```bash
 npm install
-cp resources/default-config.example.properties resources/default-config.properties   # then fill it in (see below)
 npm start          # builds (tsc, local database client) and opens the app
 ```
 
 `npm start` runs `npm run build` first: it generates the local database client from `prisma/sqlite/schema.prisma`, compiles `src/` to `dist/`, copies the client and checks the sync order. The window itself (`renderer/`) needs no build.
 
-Settings live in `%APPDATA%\OptiPro\config.properties` (created on first start from `resources/default-config.properties`):
+Settings live in `%APPDATA%\OptiPro\config.properties`. **Nothing is built into the app**: a new installation has no such file, and while it is missing (or has no `tenant.key` or no `server.url`) the app does not start: it opens a **setup page** instead (a form for the shop's key, server address and details; Confirm does nothing yet, so for now create the file by hand):
 
 ```properties
 tenant.key=<the shop's key>            # identifies the shop to the server
@@ -102,7 +101,7 @@ npm run dist       # build + checks + installer in release/OptiPro-Setup-<versio
 npm run pack       # same, but an unpacked folder (faster, to try)
 ```
 
-The installer embeds `resources/default-config.properties`, so put the shop's key and server address in it before building. It is git-ignored because it holds a secret.
+The installer carries no shop settings and no secret: every installation is configured on its first run.
 
 ### 2. The server: Cloudflare (recommended)
 
@@ -145,7 +144,7 @@ npm run build      # production build (the Cloudflare build runs this for you)
 `backend/prisma/schema.prisma` describes the tables the **website** reads (tenants, categories, brands, frames, accessories, product images); `npx prisma db push` from `backend/` creates them. The tables the desktop app syncs beyond those (customers, prescriptions, lenses, orders, order items, payments, invoices, number sequences) are the ones in `prisma/sqlite/schema.prisma`, and **on Neon they were created by hand with SQL**: there is no migration for them in this repository yet, so a brand-new Neon database needs those tables created to match the local schema before the app can sync them (a known gap). To add a shop, run `backend/prisma/create_tenant.sql` once (it defines `create_tenant()`), then:
 
 ```sql
-SELECT create_tenant('shop.example.com', 'Shop name', '<neon-host>');
+SELECT create_tenant('shop.example.com', '<neon-host>');
 ```
 
 It registers the shop, creates its own database login and row-level-security policies, and returns the connection URL. The shop's **key** goes in the app's `tenant.key`, and its **host** must be the address the site is served from. Treat the key and the URL as secrets.
@@ -166,7 +165,7 @@ Texts are written in English in the pages; `renderer/i18n.js` translates what la
 
 ## Good to know
 
-- **Secrets**: `resources/default-config.properties`, every `.env`, `.dev.vars` and the local database are git-ignored. Never commit a tenant key or a connection string.
+- **Secrets**: every `.env`, `.dev.vars` and the local database are git-ignored. Never commit a tenant key or a connection string.
 - **Money** is stored as whole centimes. A cancelled order owes nothing; an order can be paid in parts.
 - **Rows that must never be deleted** (orders, payments, invoices and their numbering) are not deletable by a shop's database login: cancel or void them with a status.
 - **After a schema change** in `prisma/sqlite/schema.prisma`: `npm run build` (regenerates the client) then `npm run sync:table-api`, and apply the matching change to the Neon tables.

@@ -11,7 +11,7 @@ const MAX_BODY = '1mb';
  *   Authorization: Bearer <tenant key>
  *
  * In this order:
- *   1. the tenant key must exist in the tenants table (`findTenantByKey`)           -> 401 UNAUTHORIZED (429 after too many wrong keys)
+ *   1. the tenant key must exist in the tenants table and not be expired (`findActiveTenant`) -> 401 UNAUTHORIZED, the same answer for both (429 after too many wrong keys)
  *   2. the table must be one of the tables in TABLE_PRIVILEGES                      -> 404 TABLE_NOT_FOUND
  *   3. `action` must be insert, update or delete                                    -> 400 INVALID_ACTION
  *   4. the table's entry in TABLE_PRIVILEGES must list that action                  -> 403 ACTION_NOT_ALLOWED
@@ -50,9 +50,9 @@ export const TABLE_PRIVILEGES = new Map([
   ['number_sequences', ['insert', 'update']],
 ]);
 
-export function createTableApiRouter({ findTenantByKey, runQuery, removeFiles }) {
+export function createTableApiRouter({ findActiveTenant, runQuery, removeFiles }) {
   const router = express.Router();
-  const authenticate = createTenantAuthenticator(findTenantByKey);
+  const authenticate = createTenantAuthenticator(findActiveTenant);
 
   // the checks, then the body is read (only for a request that got this far), then the work
   router.post(

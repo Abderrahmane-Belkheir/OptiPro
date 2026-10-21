@@ -52,9 +52,9 @@ function fromHtml(source) {
 
 export function extract() {
   const all = new Set();
-  const files = [join(RENDERER, "shell.js"), ...readdirSync(join(RENDERER, "pages")).filter((f) => f.endsWith(".js")).map((f) => join(RENDERER, "pages", f))];
+  const files = [join(RENDERER, "shell.js"), join(RENDERER, "expired.js"), ...readdirSync(join(RENDERER, "pages")).filter((f) => f.endsWith(".js")).map((f) => join(RENDERER, "pages", f))];
   for (const f of files) for (const s of fromJs(readFileSync(f, "utf8"))) all.add(s);
-  for (const s of fromHtml(readFileSync(join(RENDERER, "index.html"), "utf8"))) all.add(s);
+  for (const page of ["index.html", "setup.html", "expired.html"]) for (const s of fromHtml(readFileSync(join(RENDERER, page), "utf8"))) all.add(s);
   return [...all].sort();
 }
 

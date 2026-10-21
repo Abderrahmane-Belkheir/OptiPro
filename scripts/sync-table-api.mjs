@@ -129,6 +129,7 @@ const wanted = new Map([
   [path.join(root, "backend", "src", "lib", "tableColumns.js"), columnsFile],
   [path.join(root, "cloudflare", "src", "tableColumns.js"), copyNote("tableColumns.js") + columnsFile],
   [path.join(root, "cloudflare", "src", "tableCore.js"), copyNote("tableCore.js") + core],
+  [path.join(root, "cloudflare", "src", "registerCore.js"), copyNote("registerCore.js") + fs.readFileSync(path.join(root, "backend", "src", "lib", "registerCore.js"), "utf8")],
 ]);
 
 let stale = 0;

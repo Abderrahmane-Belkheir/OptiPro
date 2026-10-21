@@ -3,7 +3,7 @@
 // stored alongside. The photo's row in product_images says whose it is.
 
 import { authenticate } from './auth.js';
-import { deletePhotoRow, findTenantByKey, photoRowExists, reservePhoto } from './db.js';
+import { deletePhotoRow, findActiveTenant, findTenantByKey, photoRowExists, reservePhoto } from './db.js';
 import { apiError, json, malformedAddress, decodeSegment, CORS } from './http.js';
 import { IMAGE_ID, maxImageBytes, photoKey, PRODUCT_TYPES, SAFE_CODE, sniffImage } from './rules.js';
 
@@ -47,7 +47,7 @@ const exists = async (bucket, id) => (await bucket.head(photoKey(id))) !== null;
  *   201 { id, url: "/api/images/<id>", type, code, size, contentType }
  *
  * In this order (a failure leaves no row and no file behind):
- *   1. the tenant key must exist (401 / 429) - before the body is read;
+ *   1. the tenant key must exist and not be expired (401 UNAUTHORIZED for both / 429) - before the body is read;
  *   2. the request must be valid on its face: type, code and photo id (400), the body is a PNG, JPEG, WebP or GIF
  *      within the size limit (415, 413);
  *   3. ONE database request: the photo id must be new (409) and the row is inserted for this shop's product (404);
@@ -55,7 +55,7 @@ const exists = async (bucket, id) => (await bucket.head(photoKey(id))) !== null;
  */
 export async function uploadPhoto(request, env, sql, url, rawCode, rawId) {
   if (!env.IMAGES) return NO_BUCKET();
-  const auth = await authenticate(request, (key) => findTenantByKey(sql, key));
+  const auth = await authenticate(request, (key) => findActiveTenant(sql, key));
   if (auth.response) return auth.response;
   const { tenantKey } = auth;
 

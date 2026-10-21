@@ -99,6 +99,15 @@ export function createTenantAuthenticator(findTenantByKey) {
   };
 
   return async function authenticate(req, res, next) {
+    const header = req.get('authorization') ?? '';
+    const key = /^Bearer\s+(\S+)\s*$/i.exec(header)?.[1];
+    const tenant = key && SAFE_KEY.test(key) ? await findTenantByKey(key) : null;
+    // A valid key is never slowed down: many shops can share one address (one ISP connection), and the wrong keys of one must not block the others.
+    if (tenant && tenant.key === key) {
+      req.tenantKey = tenant.key;
+      next();
+      return;
+    }
     const wait = blockedForMs(req.ip);
     if (wait > 0) {
       const seconds = Math.ceil(wait / 1000);
@@ -106,17 +115,9 @@ export function createTenantAuthenticator(findTenantByKey) {
       uploadError(res, 429, 'TOO_MANY_ATTEMPTS', `Too many requests with a wrong tenant key from this address. Try again in ${seconds} seconds.`, { retry: 'after-delay', retryAfterSeconds: seconds });
       return;
     }
-    const header = req.get('authorization') ?? '';
-    const key = /^Bearer\s+(\S+)\s*$/i.exec(header)?.[1];
-    const tenant = key && SAFE_KEY.test(key) ? await findTenantByKey(key) : null;
-    if (!tenant || tenant.key !== key) {
-      recordFailure(req.ip);
-      res.set('WWW-Authenticate', 'Bearer');
-      uploadError(res, 401, 'UNAUTHORIZED', 'A valid tenant key is required: send it as "Authorization: Bearer <tenant key>".');
-      return;
-    }
-    req.tenantKey = tenant.key;
-    next();
+    recordFailure(req.ip);
+    res.set('WWW-Authenticate', 'Bearer');
+    uploadError(res, 401, 'UNAUTHORIZED', 'A valid tenant key is required: send it as "Authorization: Bearer <tenant key>".');
   };
 }
 
@@ -150,7 +151,7 @@ export async function removePhotoFiles(imagesDir, id) {
  * <code> is the id of the frame or accessory the photo is for; <id> is the id of the PHOTO, a UUID the
  * client makes up (and sends again if it ever has to retry the same photo). What happens, in this order:
  *
- *   1. the tenant key must exist in the tenants table (`findTenantByKey`)             -> 401 otherwise
+ *   1. the tenant key must exist in the tenants table and, for an upload, not be expired (`findActiveTenant`) -> 401 otherwise
  *   2. the request must be valid on its face, without asking the database anything:
  *      `type` is frame or accessory (400), the code is a plain id (400), the photo id is a UUID (400),
  *      the body is a PNG, JPEG, WebP or GIF within the size limit (415, 413)
@@ -166,11 +167,13 @@ export async function removePhotoFiles(imagesDir, id) {
  * Every upload adds a photo (a product can have several); the photo is fetched with GET /api/images/<id>.
  * Every failure is answered as { error, code, ...details } (see uploadError) and leaves nothing behind.
  */
-export function createImageRouter({ findTenantByKey, productImageExists, insertProductImage, deleteProductImage, imagesDir }) {
+export function createImageRouter({ findTenantByKey, findActiveTenant = findTenantByKey, productImageExists, insertProductImage, deleteProductImage, imagesDir }) {
   const router = express.Router();
   // 1. Authentication comes first, before the body is read: a caller without a valid key never gets
   // the server to buffer a file.
   const authenticate = createTenantAuthenticator(findTenantByKey);
+  // An upload also needs the shop's licence not to be expired (findActiveTenant: a key that does not exist and an expired key give the same 401).
+  const authenticateUpload = createTenantAuthenticator(findActiveTenant);
 
   // 2a. The parts of the request that can be judged without the body.
   function validateRequest(req, res, next) {
@@ -190,7 +193,7 @@ export function createImageRouter({ findTenantByKey, productImageExists, insertP
     next();
   }
 
-  router.post('/:code/:id', authenticate, validateRequest, express.raw({ type: () => true, limit: MAX_BYTES }), async (req, res) => {
+  router.post('/:code/:id', authenticateUpload, validateRequest, express.raw({ type: () => true, limit: MAX_BYTES }), async (req, res) => {
     const { code } = req.params;
     const id = req.params.id.toLowerCase();
     const { type } = req.query;

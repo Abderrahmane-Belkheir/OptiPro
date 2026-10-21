@@ -1,0 +1,28 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <!-- The page only ever loads its own files: no network, no inline script or style. -->
+  <meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'self'; style-src 'self'; img-src 'self' data:; font-src 'self'">
+  <title>OptiPro licence expired</title>
+  <link rel="stylesheet" href="styles/fonts.css">
+  <link rel="stylesheet" href="styles/tokens.css">
+  <link rel="stylesheet" href="styles/global.css">
+  <link rel="stylesheet" href="styles/components.css">
+  <link rel="stylesheet" href="styles/setup.css">
+</head>
+<body class="setup-body">
+  <main class="setup" aria-labelledby="expired-title">
+    <header class="setup__header">
+      <h1 class="setup__title" id="expired-title">Your licence has expired</h1>
+      <p class="setup__intro" id="expired-text" translate="no"></p><!-- (expired.js translates the sentence itself) -->
+    </header>
+  </main>
+
+  <script src="i18n.js"></script>
+  <script src="i18n/fr.js"></script>
+  <script src="i18n/ar.js"></script>
+  <script src="expired.js"></script>
+</body>
+</html>

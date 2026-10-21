@@ -496,3 +496,15 @@ model PendingDeletion {
   @@unique([kind, targetId])
   @@map("pending_deletions")
 }
+
+/// When this installation's licence runs out. Local-only table: it is never sent anywhere (it has no tenant_key and no synced column, so the
+/// table API does not know it). At most one row, with id 1.
+model LicenseExpiry {
+  id        Int      @id @default(1)
+  /// The day after which the licence is no longer valid.
+  expiresAt DateTime @map("expires_at")
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  @@map("license_expiry")
+}

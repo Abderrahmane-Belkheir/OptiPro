@@ -1,0 +1,17 @@
+/* The setup page (setup.html). */
+.setup-body { margin: 0; min-height: 100%; background: var(--color-canvas); overflow-y: auto; } /* (global.css hides the overflow of body for the app shell; this page is taller than a small window, so it scrolls) */
+.setup { max-width: 640px; margin: 0 auto; padding: var(--space-8, 32px) var(--space-5, 20px) var(--space-10, 48px); display: flex; flex-direction: column; gap: var(--space-5, 20px); }
+.setup__languages { display: flex; gap: 6px; justify-content: flex-end; }
+.setup__language { font: inherit; font-size: var(--text-xs); padding: 4px 10px; border: 1px solid var(--color-border-strong); border-radius: 999px; background: var(--color-surface); color: inherit; cursor: pointer; }
+.setup__language[aria-checked="true"] { background: var(--color-text); color: var(--color-surface); border-color: var(--color-text); }
+.setup__title { margin: 0 0 6px; font-size: var(--text-2xl, 28px); }
+.setup__intro { margin: 0; color: var(--color-text-muted); max-width: 56ch; }
+.setup__form { display: flex; flex-direction: column; gap: var(--space-5, 20px); }
+.setup__group { display: flex; flex-direction: column; gap: var(--space-4, 16px); margin: 0; padding: var(--space-5, 20px); border: 1px solid var(--color-border); border-radius: var(--radius-lg, 12px); background: var(--color-surface); }
+.setup__legend { padding: 0 6px; font-size: var(--text-xs); font-weight: var(--weight-bold); text-transform: uppercase; letter-spacing: 0.06em; color: var(--color-text-muted); }
+.setup__row { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: var(--space-4, 16px); }
+.setup__actions { display: flex; justify-content: flex-end; }
+:root[dir="rtl"] body { font-family: "Segoe UI", Tahoma, "Noto Sans Arabic", system-ui, sans-serif; }
+.setup__status { margin: 0; padding: var(--space-3, 12px) var(--space-4, 16px); border-radius: var(--radius-md, 8px); border: 1px solid var(--color-border); background: var(--color-surface); }
+.setup__status[data-tone="error"] { border-color: var(--color-danger); color: var(--color-danger); }
+.setup__status[data-tone="ok"] { border-color: #2e7d32; color: #2e7d32; }

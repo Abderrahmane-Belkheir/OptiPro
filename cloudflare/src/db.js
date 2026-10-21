@@ -26,6 +26,37 @@ export async function findTenantByKey(sql, key) {
   return rows[0] ?? null;
 }
 
+/**
+ * The tenant with this key whose licence is running, or null: how the table API and photo uploads check a key. A key that does not exist, a key that
+ * was never registered (its `expiry` is empty: only POST /api/register accepts that) and a key whose `expiry` day is already past all give the same
+ * answer (null), so a client cannot tell them apart. The expiry day itself still counts (the date is compared with today's date in UTC).
+ */
+export async function findActiveTenant(sql, key) {
+  const rows = await sql.query(
+    "SELECT key, expiry FROM tenants WHERE key = $1 AND expiry IS NOT NULL AND expiry::date >= (now() AT TIME ZONE 'UTC')::date",
+    [key],
+  );
+  return rows[0] ?? null;
+}
+
+/**
+ * The tenant with this key that has never been registered (its `expiry` is still empty), or null: how POST /api/register checks a key. A key that
+ * does not exist and a key that already has an expiry (registered before, running or expired) give the same answer (null).
+ */
+export async function findUnregisteredTenant(sql, key) {
+  const rows = await sql.query('SELECT key FROM tenants WHERE key = $1 AND expiry IS NULL', [key]);
+  return rows[0] ?? null;
+}
+
+/**
+ * True when the shop served at this host name has an `expiry` that is past: its public website then shows nothing (403 LICENSE_EXPIRED). A shop whose
+ * expiry is still empty (not registered yet) and a host that no shop uses are not expired.
+ */
+export async function isHostExpired(sql, host) {
+  const rows = await sql.query("SELECT 1 AS expired FROM tenants WHERE host = $1 AND expiry IS NOT NULL AND expiry::date < (now() AT TIME ZONE 'UTC')::date", [host]);
+  return rows.length > 0;
+}
+
 // ---- what the website reads -------------------------------------------------------------------
 
 /** What a photo is sent as: its CODE, nothing else ("aviator-gold.jpg"), never a path or an address. */

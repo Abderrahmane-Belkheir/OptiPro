@@ -53,8 +53,10 @@ const holes = (s) => (s.match(/\{\d+\}/g) ?? []).sort().join();
   });
   test("every English text of the pages has a French and an Arabic translation", () => {
     const code = /^(btn|dialog|dash-|status|toast|table|toolbar|state|page|search|creation__|frame-|input|lens-|order__|od-|pick-|popup|rx-|skeleton|summary|cell-|button|Arrow|use strict|\(max|:hover)/;
+    // example values shown in form fields (a phone, an address, a key, an e-mail) are not interface texts
+    const example = /^(https?:\/\/|\+?\d[\d ]*$|[\w.+-]+@|[\w-]+(\.[\w-]+)+$|[0-9a-f]{32}$|12 Rue)/;
     const artifact = /\$\{|\\|^\{0\}|\{0\}[%/°]|T00:00|cell-truncate|^ ?: |^ ?[·×] \{0\}|^\s*\(\{0\}\)$|^\{0\} \{1\}|^(End|English|Français|Size ?)$/;
-    const missing = extract().filter((s) => !code.test(s) && !/^[a-z_-]+( [a-z_-]+)*$/.test(s) && !/--|__/.test(s) && !artifact.test(s) && !(s in fr && s in ar) && !(s.trim() in fr && s.trim() in ar));
+    const missing = extract().filter((s) => !code.test(s) && !/^[a-z_-]+( [a-z_-]+)*$/.test(s) && !/--|__/.test(s) && !artifact.test(s) && !example.test(s) && !(s in fr && s in ar) && !(s.trim() in fr && s.trim() in ar));
     assert.deepEqual(missing, []);
   });
 
