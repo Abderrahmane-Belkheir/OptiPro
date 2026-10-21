@@ -1,4 +1,4 @@
-import { RemoteUnreachableError } from "../db/remote";
+import { RemoteUnreachableError } from "./errors";
 
 /** Checked before every push: when false, inserts stay local with `synced = false`. */
 export const syncFlag = { push: true };

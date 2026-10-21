@@ -23,3 +23,9 @@ prisma/sqlite/init.sql
 
 # Local SQLite data file (see prisma/sqlite/) — runtime data, not source.
 local.db
+
+# The settings built into the app: holds the shop's database password and upload key. default-config.example.properties is the template.
+/resources/default-config.properties
+
+# The installer and the unpacked app made by `npm run dist` / `npm run pack`.
+/release

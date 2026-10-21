@@ -1,14 +1,21 @@
 export interface Accessory {
-  id: string;
+  /** The shop's own short code, unique within the shop: how a product is known, addressed and printed on its label. The internal id never reaches the website. */
+  code: string;
   name: string;
   description: string;
-  price?: number;
-  currency?: string;
+  price?: number | null;
+  currency?: string | null;
   /**
-   * One or more photos; the general grid/card view always shows `images[0]`. The backend sends each
-   * photo's CODE ("aviator-gold.jpg"); the hooks turn the codes into full addresses
-   * (origin + /images/<host name>/<code>, see utils/resolveImageUrl.ts) before anything renders them.
+   * Photo addresses: one or more; the general grid/card view always shows `images[0]`. What the backend
+   * sends is `imageIds` (below) and, for older records, photo codes in this same field; the hooks turn them
+   * into full addresses (utils/resolveImageUrl.ts, resolveProductImages) before anything renders them, so
+   * by the time a component reads `images` it holds ready-to-use addresses.
    */
   images: string[];
+  /**
+   * The ids of the photos the shop uploaded for this item (as sent by the backend). Each photo is fetched
+   * with GET /api/images/<id>; the hooks put those addresses into `images`.
+   */
+  imageIds?: string[];
   inStock: boolean;
 }

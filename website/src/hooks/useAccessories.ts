@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import { apiAccessoryService } from '../services/accessoryService';
 import type { Accessory } from '../types/accessory';
 import { accessoryCache } from '../utils/itemCache';
-import { resolveImageUrl } from '../utils/resolveImageUrl';
+import { resolveProductImages } from '../utils/resolveImageUrl';
 
 interface UseAccessoriesResult {
   accessories: Accessory[];
@@ -31,9 +31,9 @@ export function useAccessories(shouldFetch: boolean): UseAccessoriesResult {
       .then((result) => {
         const resolved = result.map((accessory) => ({
           ...accessory,
-          images: accessory.images.map((url) => resolveImageUrl(url) ?? url),
+          images: resolveProductImages(accessory),
         }));
-        resolved.forEach((accessory) => accessoryCache.set(accessory.id, accessory));
+        resolved.forEach((accessory) => accessoryCache.set(accessory.code, accessory));
         if (isActive) setAccessories(resolved);
       })
       .catch(() => {

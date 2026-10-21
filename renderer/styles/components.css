@@ -302,7 +302,7 @@ textarea.input {
   border-radius: var(--radius-sm);
   font-size: var(--text-sm);
   font-weight: var(--weight-semibold);
-  text-align: left;
+  text-align: start;
 }
 
 .popup__item:hover,
@@ -331,7 +331,7 @@ textarea.input {
 
 .toasts {
   position: fixed;
-  right: var(--space-6);
+  inset-inline-end: var(--space-6);
   bottom: var(--space-6);
   z-index: 200;
   display: flex;

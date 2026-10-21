@@ -3,8 +3,9 @@ import { resolveTenantKeyByHost, withTenant } from '../lib/tenantContext.js';
 
 // What an accessory is read with. `productImages` is the join with the product_images table (through its
 // accessory_id), keeping only this tenant's rows and only each photo's id.
+// The id is internal and never goes out: an accessory is known by its code (unique per shop).
 const accessorySelect = (tenantKey) => ({
-  id: true,
+  code: true,
   name: true,
   description: true,
   price: true,
@@ -31,17 +32,18 @@ export async function getAccessories(host) {
   if (!tenantKey) return [];
 
   const rows = await withTenant(tenantKey, (tx) =>
-    tx.accessory.findMany({ relationLoadStrategy: 'join', where: { tenantKey }, select: accessorySelect(tenantKey) }),
+    tx.accessory.findMany({ relationLoadStrategy: 'join', where: { tenantKey, code: { not: null } }, select: accessorySelect(tenantKey) }), // one without a code cannot be addressed: it is not offered
   );
   return rows.map(reshapeAccessory);
 }
 
-export async function getAccessoryById(host, id) {
+// The code is looked up in lowercase, within the shop of the host: two shops can have the same code.
+export async function getAccessoryByCode(host, code) {
   const tenantKey = await resolveTenantKeyByHost(host);
   if (!tenantKey) return null;
 
   const row = await withTenant(tenantKey, (tx) =>
-    tx.accessory.findFirst({ relationLoadStrategy: 'join', where: { id, tenantKey }, select: accessorySelect(tenantKey) }),
+    tx.accessory.findFirst({ relationLoadStrategy: 'join', where: { tenantKey, code: String(code).trim().toLowerCase() }, select: accessorySelect(tenantKey) }),
   );
   return row ? reshapeAccessory(row) : null;
 }

@@ -41,7 +41,6 @@ export interface SyncParent {
  * the check script enforces that too, because the SQL filter in syncPush.ts relies on it.
  */
 export const SYNC_PARENTS: Record<string, SyncParent[]> = {
-  // frames.brandId is also checked for the brand's remote database id (remoteId) in frameService.ts.
   frames: [{ field: "brandId", parent: "brands" }],
   prescriptions: [{ field: "customerId", parent: "customers" }],
   orders: [
@@ -63,6 +62,12 @@ export const SYNC_PARENTS: Record<string, SyncParent[]> = {
     { field: "customerId", parent: "customers", optional: true },
   ],
   invoice_items: [{ field: "invoiceId", parent: "invoices" }],
+  // A photo belongs to a frame OR an accessory (one of the two is empty). Nothing pushes photos through the
+  // sync scheduler yet; the references are declared so the rule is already right when something does.
+  product_images: [
+    { field: "frameId", parent: "frames", optional: true },
+    { field: "accessoryId", parent: "accessories", optional: true },
+  ],
 };
 
 /** The parents of a table in the shape the shared sync engine (tableService.ts) wants. */

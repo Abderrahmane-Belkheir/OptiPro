@@ -3,8 +3,8 @@ import type {
   NewInvoice, NewInvoiceItem, NewLens, NewOrder, NewOrderItem, NewPayment, NewPrescription, Order, OrderItem, Payment, Prescription,
 } from "../services/types";
 
-/** The two databases the app can work with. */
-export type DatabaseName = "local" | "remote";
+/** The database the app works with. */
+export type DatabaseName = "local";
 
 /** Every table that has the full table API, with the shape of its rows and of a new row. */
 export interface TableTypes {
@@ -28,7 +28,7 @@ export const TABLE_NAMES: TableName[] = [
 ];
 
 /**
- * What every table offers, on either database. Rows come back in the app's shape: field names in
+ * What every table offers. Rows come back in the app's shape: field names in
  * camelCase, dates as ISO strings, array columns as arrays. Failures that the caller can act on are
  * thrown as LocalDbError with a `kind` (not-found, duplicate, invalid-reference, invalid-input).
  * Method syntax on purpose: an implementation may accept a narrower argument type (a brand id is a
@@ -55,14 +55,3 @@ export interface Database {
 
 /** The database on this computer. Writes are scoped to the shop, mark rows unsynced and are pushed to the remote one. */
 export type LocalDatabase = Database;
-
-/** The shared Neon database. Only reachable with a connection; offline calls reject with RemoteUnreachableError. */
-export interface RemoteDatabase extends Database {
-  ping(): Promise<void>;
-  fetchTenants(): Promise<{ key: string; host: string; name: string }[]>;
-  /** Inserts the rows or updates those whose id exists, in one transaction. Used by the sync layer. */
-  upsertMany(tenantKey: string, table: string, rows: Record<string, unknown>[]): Promise<void>;
-  /** Brands have a database-assigned id: insert (no id) returns it, with an id renames that brand. */
-  saveBrand(tenantKey: string, brand: { id?: number; name: string }): Promise<{ id: number }>;
-  close(): Promise<void>;
-}

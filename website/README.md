@@ -89,7 +89,7 @@ call (`CatalogService.getCategoriesAndBrands()`). **Every brand is available in 
 the UI never filters the brand list by the selected category, and switching categories never
 resets the chosen brand.
 
-`Category` is `{ id: number; name: string; url: string }`; `Brand` is `{ id: number; name: string }`.
+`Category` is `{ id: number; name: string; url: string }`; `Brand` is `{ id: string; name: string }` (a UUID).
 Nothing in the app keys off either id yet — selection, `CategoryCard`/`BrandOption`'s `isSelected`
 checks, and `Frame` matching (`frame.category`, `frame.brand`) all still run on `name`. Both ids
 are only used as React list keys today.
@@ -116,16 +116,18 @@ photo never breaks the tile.
 }
 ```
 
-**Frame and accessory photos arrive as codes, not addresses.** `Frame.images[]` and
-`Accessory.images[]` hold only each photo's code (`"aviator-gold.jpg"`); the client works the full
-address out itself, as `<API origin>/images/<host name>/<code>`, through `utils/resolveImageUrl.ts`
-(rules in `utils/imageUrl.ts`). The host name is the one the site is served from
-(`window.location.hostname`): the backend turns it into the shop and reads the photo from that
-shop's folder, so no private key ever appears in an address. `API_ORIGIN` is
-`config/apiOrigin.ts` (set via the `VITE_API_ORIGIN` env var; empty/same-origin by default). Every
-data-fetching hook runs its result through this before anything renders. An already-absolute URL
-(`https://…`, `//cdn…`) is left untouched, and so is a path starting with `/`, which resolves
-against the origin as before.
+**Frame and accessory photos arrive as ids.** Every frame and accessory the backend sends carries
+`imageIds`: the ids of the photos the shop uploaded for it. The site fetches each photo with
+`GET <API origin>/api/images/<id>` (`utils/imageUrl.ts`: `buildPhotoUrl`, `buildProductImageUrls`;
+`utils/resolveImageUrl.ts`: `resolveProductImages`). The card always shows the first one; the detail
+view's gallery shows all of them, in the order the backend sent. Every data-fetching hook turns the
+ids into addresses before anything renders them, so a component reads `images` as ready-to-use
+addresses. An item without ids (an older record) still shows its older `images` codes, resolved as
+`<API origin>/images/<host name>/<code>` (the host name is the one the site is served from,
+`window.location.hostname`; the backend turns it into the shop, so no private key appears in an
+address). An already-absolute URL (`https://…`, `//cdn…`) is left untouched, and so is a path starting
+with `/`, which resolves against the origin as before. `API_ORIGIN` is `config/apiOrigin.ts` (set via
+the `VITE_API_ORIGIN` env var; empty/same-origin by default).
 
 **Other images the backend owns** (`Category.url`) are still sent as paths (or absolute URLs, e.g.
 the hotlinked Unsplash photos) and resolved against `API_ORIGIN` through

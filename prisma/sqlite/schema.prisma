@@ -23,18 +23,14 @@ datasource db {
 }
 
 model Brand {
-  id   Int    @id @default(autoincrement())
+  /// Made here (a UUID) like the id of every other table, and the same on the server: nothing to translate.
+  id   String @id @default(uuid())
   name String
 
   /**
    * Whether this row has been sent to the backend. Local-only column — never sent.
    */
   synced Boolean @default(false)
-
-  /**
-   * The id the backend gave this brand, once it has been sent; null before. Local-only column.
-   */
-  remoteId Int? @map("remote_id")
 
   tenantKey String @map("tenant_key")
   tenant    Tenant @relation(fields: [tenantKey], references: [key])
@@ -71,8 +67,8 @@ model Frame {
   colors   String  @default("[]")
   stock    Int     @default(0)
 
-  brandId    Int      @map("brand_id")
-  brand      Brand    @relation(fields: [brandId], references: [id])
+  brandId    String   @map("brand_id")
+  brand      Brand    @relation(fields: [brandId], references: [id], onDelete: Restrict)
   categoryId Int      @map("category_id")
   category   Category @relation(fields: [categoryId], references: [id])
 
@@ -94,6 +90,13 @@ model Frame {
   reference    String?
   costPrice    Float?  @map("cost_price")
 
+  /// The shop's own short code for this product (what labels and the website show). Optional for now; unique per shop when set. The
+  /// id stays the internal key: this is the code people read, say and scan. A simple code (3 lowercase letters, a dash, 3 digits: abc-123), made here, never reused.
+  code String?
+
+  productImages ProductImage[]
+
+  @@unique([tenantKey, code])
   @@map("frames")
 }
 
@@ -121,7 +124,35 @@ model Accessory {
 
   costPrice Float? @map("cost_price")
 
+  /// The shop's own short code for this product (what labels and the website show); see Frame.code.
+  code String?
+
+  productImages ProductImage[]
+
+  @@unique([tenantKey, code])
   @@map("accessories")
+}
+
+/**
+ * Where to look for the photos of a product: one row per photo, with the photo's id (the one the server
+ * knows it by: GET /api/images/<id>) and the product it belongs to, EITHER a frame OR an accessory (one
+ * of the two columns is filled, the other is null). A photo row goes when its product is deleted.
+ */
+model ProductImage {
+  id String @id
+
+  /**
+   * Whether this photo has been sent to the server. Local-only column, false until it is. It decides
+   * nothing about showing the photo: a photo is listed and rendered whether or not it is synced.
+   */
+  synced Boolean @default(false)
+
+  frameId     String?    @map("frame_id")
+  frame       Frame?     @relation(fields: [frameId], references: [id], onDelete: Cascade)
+  accessoryId String?    @map("accessory_id")
+  accessory   Accessory? @relation(fields: [accessoryId], references: [id], onDelete: Cascade)
+
+  @@map("product_images")
 }
 
 model Customer {
@@ -188,7 +219,7 @@ model Tenant {
 model Prescription {
   id             String   @id @default(uuid())
   customerId     String   @map("customer_id")
-  customer       Customer @relation(fields: [customerId], references: [id])
+  customer       Customer @relation(fields: [customerId], references: [id], onDelete: Restrict)
   /// Date written on the prescription.
   prescribedAt   DateTime @map("prescribed_at")
   prescriberName String?  @map("prescriber_name")
@@ -240,7 +271,7 @@ model Lens {
   antiReflective  Boolean @default(false) @map("anti_reflective")
   blueLightFilter Boolean @default(false) @map("blue_light_filter")
   photochromic    Boolean @default(false)
-  /// Per lens, in minor units (centimes).
+  /// What the shop charges for this lens, in minor units (centimes). It is not tied to a pair or to one lens: the order line says how many and for which eye.
   priceCents      Int     @default(0) @map("price_cents")
   costCents       Int     @default(0) @map("cost_cents")
   isActive        Boolean @default(true) @map("is_active")
@@ -256,6 +287,26 @@ model Lens {
 
   polarized Boolean @default(false)
   tint      String?
+
+  /// The power interval this lens can be made for. All optional: an empty limit means "no limit known". Cylinder is in the same
+  /// sign as the prescriptions are written (usually minus). Add only applies to bifocal and progressive lenses.
+  sphereMin     Float? @map("sphere_min")
+  sphereMax     Float? @map("sphere_max")
+  cylinderMin   Float? @map("cylinder_min")
+  cylinderMax   Float? @map("cylinder_max")
+  addMin        Float? @map("add_min")
+  addMax        Float? @map("add_max")
+  /// The largest allowed |sphere + cylinder| (the strongest meridian), when the maker gives such a limit.
+  combinedLimit Float? @map("combined_limit")
+
+  /// How many days the lab usually needs, and the smallest fitting height (mm) a progressive can be made for (its corridor length).
+  leadTimeDays     Int?   @map("lead_time_days")
+  minFittingHeight Float? @map("min_fitting_height")
+
+  /// Who makes it (Essilor, Zeiss, ...), the maker's or the supplier's code for it, and anything else worth knowing.
+  brand     String?
+  reference String?
+  notes     String?
 
   @@map("lenses")
 }
@@ -307,7 +358,7 @@ model OrderItem {
   frameId     String?    @map("frame_id")
   frame       Frame?     @relation(fields: [frameId], references: [id])
   lensId      String?    @map("lens_id")
-  lens        Lens?      @relation(fields: [lensId], references: [id])
+  lens        Lens?      @relation(fields: [lensId], references: [id], onDelete: Restrict)
   accessoryId String?    @map("accessory_id")
   accessory   Accessory? @relation(fields: [accessoryId], references: [id])
 
@@ -337,8 +388,6 @@ model Payment {
   customerId    String?   @map("customer_id")
   customer      Customer? @relation(fields: [customerId], references: [id], onDelete: Restrict)
   amountCents   Int       @map("amount_cents")
-  /// cash | cheque | bank_transfer | card
-  method        String    @default("cash")
   paidAt        DateTime  @default(now()) @map("paid_at")
   /// For a post-dated cheque.
   chequeDueDate DateTime? @map("cheque_due_date")
@@ -429,4 +478,21 @@ model NumberSequence {
 
   @@unique([tenantKey, kind, year, series])
   @@map("number_sequences")
+}
+
+/// Deletions that still have to reach the server. A frame, accessory or photo is deleted from this computer at once; the
+/// server (its database row and its photo files) is told through the server's DELETE endpoints, and until it has been, the
+/// deletion waits here. Local-only table: it is never sent anywhere.
+model PendingDeletion {
+  id        Int      @id @default(autoincrement())
+  /// frame | accessory | photo
+  kind      String
+  /// The id of the frame, accessory or photo.
+  targetId  String   @map("target_id")
+  attempts  Int      @default(0)
+  lastError String?  @map("last_error")
+  createdAt DateTime @default(now()) @map("created_at")
+
+  @@unique([kind, targetId])
+  @@map("pending_deletions")
 }

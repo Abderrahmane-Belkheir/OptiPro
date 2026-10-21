@@ -160,7 +160,8 @@
       link.setAttribute("aria-expanded", String(expandedState(owner)));
     }
     for (const link of subLinks) {
-      if (link.getAttribute("href") === `#${hash}`) link.setAttribute("aria-current", "page");
+      const href = link.getAttribute("href");
+      if (href === `#${hash}` || hash.startsWith(`${href.slice(1)}/`)) link.setAttribute("aria-current", "page");
       else link.removeAttribute("aria-current");
     }
   }

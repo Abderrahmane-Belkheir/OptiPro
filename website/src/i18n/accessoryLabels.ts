@@ -38,9 +38,9 @@ const frAccessoryLabels: Record<string, AccessoryLabel> = {
 };
 
 export function translateAccessory(
-  accessory: { id: string; name: string; description: string },
+  accessory: { code: string; name: string; description: string },
   locale: Locale,
 ): AccessoryLabel {
   if (locale !== 'fr') return { name: accessory.name, description: accessory.description };
-  return frAccessoryLabels[accessory.id] ?? { name: accessory.name, description: accessory.description };
+  return frAccessoryLabels[accessory.code] ?? { name: accessory.name, description: accessory.description };
 }

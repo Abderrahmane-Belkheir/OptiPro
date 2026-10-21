@@ -21,27 +21,27 @@ export function FrameCard({ frame, brandName }: FrameCardProps) {
   return (
     <article className="group flex flex-col transition-transform duration-500 ease-out hover:-translate-y-1">
       <Link
-        to={`/frames/${frame.id}`}
+        to={`/frames/${frame.code}`}
         state={{ background: location }}
-        className="aspect-square w-full overflow-hidden bg-paper"
+        className="block w-full overflow-hidden bg-paper"
       >
-        {/* The grid view always shows the first image; the detail modal shows all of them. */}
+        {/* The grid view fetches and shows ONLY the first photo; the rest are fetched when the product is opened (all together, by the detail modal). */}
         <FadeImage
           src={frame.images[0]}
           alt={`${brandName} ${frame.name}`}
-          className="h-full w-full object-cover group-hover:scale-105"
+          className="block h-auto min-h-40 w-full object-contain group-hover:scale-105"
           loading="lazy"
         />
       </Link>
       <div className="flex flex-1 flex-col gap-1.5 pt-4">
         <span className="text-xs uppercase tracking-[0.14em] text-charcoal-soft">{brandName}</span>
         <h3 className="font-display text-lg font-medium text-charcoal">
-          <Link to={`/frames/${frame.id}`} state={{ background: location }} className="hover:text-brass">
+          <Link to={`/frames/${frame.code}`} state={{ background: location }} className="hover:text-brass">
             {frame.name}
           </Link>
         </h3>
         <div className="mt-1 flex items-center justify-between gap-2">
-          {frame.price !== undefined && (
+          {frame.price != null && (
             <span className="font-medium text-charcoal">
               {formatPrice(frame.price, frame.currency, locale)}
             </span>

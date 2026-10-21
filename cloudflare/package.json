@@ -1,0 +1,19 @@
+{
+  "name": "optician-cloudflare",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "description": "The Maison Clair website + its API as one Cloudflare Pages project (static files + an _worker.js that talks to Neon over HTTP and keeps photos in R2).",
+  "scripts": {
+    "build": "node build.mjs",
+    "build:site": "npm --prefix ../website run build && node build.mjs",
+    "dev": "npm run build && npx wrangler pages dev dist",
+    "deploy": "npm run build && npx wrangler pages deploy dist"
+  },
+  "dependencies": {
+    "@neondatabase/serverless": "^1.2.0"
+  },
+  "devDependencies": {
+    "esbuild": "^0.25.0"
+  }
+}

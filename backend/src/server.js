@@ -6,14 +6,14 @@ import https from 'node:https';
 import net from 'node:net';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { createImageByIdHandler, createImageFileRouter, createImageRouter, IMAGES_URL_PREFIX } from './lib/imageUpload.js';
-import { createProductDeleteRouter } from './lib/productDelete.js';
-import { deleteProductImage, deleteProductWithPhotos, insertProductImage, productImageExists } from './lib/productImageStore.js';
+import { createImageByIdHandler, createImageFileRouter, createImageRouter, IMAGES_URL_PREFIX, removePhotoFiles } from './lib/imageUpload.js';
+import { createTableApiRouter } from './lib/tableApi.js';
+import { deleteProductImage, insertProductImage, productImageExists } from './lib/productImageStore.js';
 import { prisma } from './lib/prismaClient.js';
-import { resolveTenantKeyByHost, warnIfRlsDisabled } from './lib/tenantContext.js';
-import { getAccessories, getAccessoryById } from './services/accessoryService.js';
+import { resolveTenantKeyByHost, warnIfRlsDisabled, withTenant } from './lib/tenantContext.js';
+import { getAccessories, getAccessoryByCode } from './services/accessoryService.js';
 import { getCatalog } from './services/catalogService.js';
-import { getFrameById, getFrames } from './services/frameService.js';
+import { getFrameByCode, getFrames } from './services/frameService.js';
 import { getSiteInfo } from './services/siteInfoService.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -64,16 +64,27 @@ app.use(
   }),
 );
 
-// DELETE /api/frames/<id> and DELETE /api/accessories/<id> -> { id, type, deleted, photos: { deleted, filesRemoved } }
-// Deletes the shop's frame/accessory (authenticated with its tenant key): in one transaction its photos'
-// ids are fetched and the product is deleted (its product_images rows go with it); only after that
-// succeeded are the photos' files deleted from the disk. See lib/productDelete.js.
+// POST /api/table/<name>?action=insert|update|delete (Authorization: Bearer <tenant key>): the table API the desktop app
+// writes its rows through. It checks the key, the table and the action (the map in lib/tableApi.js), reads the JSON body and
+// has lib/tableCore.js validate it and write the rows (every statement runs as that shop, see withTenant). Deleting a frame or an
+// accessory (or a photo row) also removes its photos' files from the images folder.
 app.use(
-  '/api',
-  createProductDeleteRouter({
-    imagesDir,
+  '/api/table',
+  createTableApiRouter({
     findTenantByKey: (key) => prisma.tenant.findUnique({ where: { key }, select: { key: true } }),
-    deleteProductWithPhotos,
+    runQuery: (tenantKey, text, params) => withTenant(tenantKey, (tx) => tx.$queryRawUnsafe(text, ...params)),
+    removeFiles: async (photoIds) => {
+      const failed = [];
+      for (const id of photoIds) {
+        try {
+          await removePhotoFiles(imagesDir, id);
+        } catch (err) {
+          console.error(`Photo ${id}: its row was deleted but its file could not be removed:`, err.message);
+          failed.push(id);
+        }
+      }
+      return failed;
+    },
   }),
 );
 
@@ -82,7 +93,7 @@ app.get('/api/catalog', async (req, res) => {
   res.json(await getCatalog(req.hostname));
 });
 
-// GET /api/frames?brandId=&categoryId= -> { id, name, brand, category, price?, currency?, images: string[] (photo CODES), imageIds: string[], shape?, colors?, inStock }[]
+// GET /api/frames?brandId=&categoryId= -> { code, name, brand, category, price?, currency?, images: string[] (photo CODES), imageIds: string[], shape?, colors?, inStock }[]
 app.get('/api/frames', async (req, res) => {
   const { brandId, categoryId } = req.query;
   if (!brandId || !categoryId) {
@@ -92,28 +103,30 @@ app.get('/api/frames', async (req, res) => {
   res.json(await getFrames({ host: req.hostname, brandId, categoryId }));
 });
 
-// GET /api/frames/:id -> { id, name, brand, category, price?, currency?, images: string[] (photo CODES), imageIds: string[], shape?, colors?, inStock } (404 if not found)
+// GET /api/frames/:code -> { code, name, brand, category, price?, currency?, images: string[] (photo CODES), imageIds: string[], shape?, colors?, inStock } (404 if not found)
+// A frame is known by its code, unique within the shop (the host's shop: two shops can have the same code), never by its internal id.
 // Only needed when a frame's link is opened directly, before the list that contains it was loaded.
-app.get('/api/frames/:id', async (req, res) => {
-  const frame = await getFrameById(req.hostname, req.params.id);
+app.get('/api/frames/:code', async (req, res) => {
+  const frame = await getFrameByCode(req.hostname, req.params.code);
   if (!frame) {
-    res.status(404).json({ error: `No frame "${req.params.id}" found.` });
+    res.status(404).json({ error: `No frame with the code "${req.params.code}" found.` });
     return;
   }
   res.json(frame);
 });
 
-// GET /api/accessories -> { id, name, description, price?, currency?, images: string[] (photo CODES), imageIds: string[], inStock }[]
+// GET /api/accessories -> { code, name, description, price?, currency?, images: string[] (photo CODES), imageIds: string[], inStock }[]
 app.get('/api/accessories', async (req, res) => {
   res.json(await getAccessories(req.hostname));
 });
 
-// GET /api/accessories/:id -> { id, name, description, price?, currency?, images: string[] (photo CODES), imageIds: string[], inStock } (404 if not found)
+// GET /api/accessories/:code -> { code, name, description, price?, currency?, images: string[] (photo CODES), imageIds: string[], inStock } (404 if not found)
+// An accessory is known by its code, unique within the host's shop, never by its internal id.
 // Only needed when an accessory's link is opened directly, before the list that contains it was loaded.
-app.get('/api/accessories/:id', async (req, res) => {
-  const accessory = await getAccessoryById(req.hostname, req.params.id);
+app.get('/api/accessories/:code', async (req, res) => {
+  const accessory = await getAccessoryByCode(req.hostname, req.params.code);
   if (!accessory) {
-    res.status(404).json({ error: `No accessory "${req.params.id}" found.` });
+    res.status(404).json({ error: `No accessory with the code "${req.params.code}" found.` });
     return;
   }
   res.json(accessory);

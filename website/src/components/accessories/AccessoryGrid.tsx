@@ -25,9 +25,9 @@ export function AccessoryGrid({ accessories, isLoading, error }: AccessoryGridPr
   }
 
   return (
-    <div className="grid grid-cols-2 gap-x-6 gap-y-12 sm:grid-cols-3 lg:grid-cols-4">
+    <div className="grid grid-cols-1 items-start gap-x-6 gap-y-12 min-[480px]:grid-cols-2 lg:grid-cols-3">
       {accessories.map((accessory) => (
-        <AccessoryCard key={accessory.id} accessory={accessory} />
+        <AccessoryCard key={accessory.code} accessory={accessory} />
       ))}
     </div>
   );

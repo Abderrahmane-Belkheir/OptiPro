@@ -3,8 +3,9 @@ import { resolveTenantKeyByHost, withTenant } from '../lib/tenantContext.js';
 
 // What a frame is read with. `productImages` is the join with the product_images table (through its
 // frame_id), keeping only this tenant's rows and only each photo's id.
+// The id is internal and never goes out: a frame is known by its code (unique per shop).
 const frameSelect = (tenantKey) => ({
-  id: true,
+  code: true,
   name: true,
   price: true,
   currency: true,
@@ -41,7 +42,7 @@ export async function getFrames({ host, brandId, categoryId }) {
   const rows = await withTenant(tenantKey, (tx) =>
     tx.frame.findMany({
       relationLoadStrategy: 'join',
-      where: { tenantKey, brandId: Number(brandId), categoryId: Number(categoryId) },
+      where: { tenantKey, code: { not: null }, brandId: String(brandId), categoryId: Number(categoryId) }, // a frame without a code cannot be addressed: it is not offered
       select: frameSelect(tenantKey),
     }),
   );
@@ -49,12 +50,13 @@ export async function getFrames({ host, brandId, categoryId }) {
   return rows.map(reshapeFrame);
 }
 
-export async function getFrameById(host, id) {
+// The code is looked up in lowercase (a typed or scanned code may be in any case), within the shop of the host: two shops can have the same code.
+export async function getFrameByCode(host, code) {
   const tenantKey = await resolveTenantKeyByHost(host);
   if (!tenantKey) return null;
 
   const row = await withTenant(tenantKey, (tx) =>
-    tx.frame.findFirst({ relationLoadStrategy: 'join', where: { id, tenantKey }, select: frameSelect(tenantKey) }),
+    tx.frame.findFirst({ relationLoadStrategy: 'join', where: { tenantKey, code: String(code).trim().toLowerCase() }, select: frameSelect(tenantKey) }),
   );
   return row ? reshapeFrame(row) : null;
 }

@@ -2,7 +2,7 @@
 // array columns as real arrays). `tenantKey` is set from config.properties, never by the caller.
 
 export interface Brand {
-  id: number;
+  id: string;
   name: string;
   tenantKey: string;
 }
@@ -22,7 +22,7 @@ export interface Frame {
   shape: string | null;
   colors: string[];
   stock: number;
-  brandId: number;
+  brandId: string;
   categoryId: number;
   /** Frame size in mm, as printed on the frame (e.g. 52-18-140). */
   eyeSize: number | null;
@@ -31,6 +31,8 @@ export interface Frame {
   /** Manufacturer model code. */
   reference: string | null;
   costPrice: number | null;
+  /** The shop's own short code (labels, website); optional for now, unique per shop. */
+  code: string | null;
   tenantKey: string;
 }
 
@@ -43,6 +45,7 @@ export interface Accessory {
   images: string[];
   stock: number;
   costPrice: number | null;
+  code: string | null;
   tenantKey: string;
 }
 
@@ -60,16 +63,16 @@ export interface Customer {
   tenantKey: string;
 }
 
-/** brands.id is a database serial, so a new brand is just a name; send the `id` to rename one. */
+/** A brand's id is a UUID made here (like every other table's); leave it out and one is made. */
 export interface NewBrand {
-  id?: number;
+  id?: string;
   name: string;
 }
 
 export interface NewFrame {
   id: string;
   name: string;
-  brandId: number;
+  brandId: string;
   categoryId: number;
   price?: number | null;
   currency?: string | null;
@@ -82,6 +85,7 @@ export interface NewFrame {
   templeLength?: number | null;
   reference?: string | null;
   costPrice?: number | null;
+  code?: string | null;
 }
 
 export interface NewAccessory {
@@ -93,6 +97,7 @@ export interface NewAccessory {
   images?: string[];
   stock?: number;
   costPrice?: number | null;
+  code?: string | null;
 }
 
 export interface NewCustomer {
@@ -155,10 +160,26 @@ export interface Lens extends Stamped {
   photochromic: boolean;
   polarized: boolean;
   tint: string | null;
-  /** Per lens. */
+  /** What the shop charges for it; not tied to a pair or to one lens (the order line says how many and which eye). */
   priceCents: number;
   costCents: number;
   isActive: boolean;
+  /** The power interval it can be made for; null = no limit known. */
+  sphereMin: number | null;
+  sphereMax: number | null;
+  cylinderMin: number | null;
+  cylinderMax: number | null;
+  addMin: number | null;
+  addMax: number | null;
+  /** The largest allowed |sphere + cylinder|. */
+  combinedLimit: number | null;
+  /** Days the lab usually needs. */
+  leadTimeDays: number | null;
+  /** The smallest fitting height (mm) it can be made for. */
+  minFittingHeight: number | null;
+  brand: string | null;
+  reference: string | null;
+  notes: string | null;
 }
 
 export interface Order extends Stamped {
@@ -199,8 +220,6 @@ export interface Payment extends Stamped {
   orderId: string | null;
   customerId: string | null;
   amountCents: number;
-  /** cash | cheque | bank_transfer | card */
-  method: string;
   paidAt: string;
   chequeDueDate: string | null;
   notes: string | null;
@@ -279,6 +298,18 @@ export interface NewLens {
   priceCents?: number;
   costCents?: number;
   isActive?: boolean;
+  sphereMin?: number | null;
+  sphereMax?: number | null;
+  cylinderMin?: number | null;
+  cylinderMax?: number | null;
+  addMin?: number | null;
+  addMax?: number | null;
+  combinedLimit?: number | null;
+  leadTimeDays?: number | null;
+  minFittingHeight?: number | null;
+  brand?: string | null;
+  reference?: string | null;
+  notes?: string | null;
 }
 
 export interface NewOrder {
@@ -315,7 +346,6 @@ export interface NewPayment {
   orderId?: string | null;
   customerId?: string | null;
   amountCents: number;
-  method?: string;
   paidAt?: string;
   chequeDueDate?: string | null;
   notes?: string | null;

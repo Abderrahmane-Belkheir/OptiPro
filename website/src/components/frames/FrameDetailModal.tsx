@@ -8,12 +8,12 @@ import { formatPrice } from '../../utils/formatPrice';
 import { ItemGalleryModal } from '../common/ItemGalleryModal';
 
 export function FrameDetailModal() {
-  const { id } = useParams<{ id: string }>();
+  const { code } = useParams<{ code: string }>();
   const navigate = useNavigate();
   const location = useLocation();
   const { locale } = useLocale();
   const t = useTranslations();
-  const { frame, isLoading, notFound, error } = useFrame(id);
+  const { frame, isLoading, notFound, error } = useFrame(code);
 
   function handleClose() {
     // navigate(-1) only makes sense when we got here from within the app (a background location
@@ -41,7 +41,7 @@ export function FrameDetailModal() {
       <span className="text-xs uppercase tracking-[0.14em] text-brass-soft">{frame.brand}</span>
       <h2 className="font-display text-3xl font-medium">{frame.name}</h2>
       <div className="flex items-center gap-3">
-        {frame.price !== undefined && (
+        {frame.price != null && (
           <span className="font-medium">{formatPrice(frame.price, frame.currency, locale)}</span>
         )}
         {!frame.inStock && (

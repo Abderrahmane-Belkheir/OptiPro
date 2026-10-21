@@ -3,6 +3,6 @@
  * backend's `/api/catalog` response — the mock just stands in for that until the real API exists.
  */
 export interface Brand {
-  id: number;
+  id: string; // a UUID, the same on the desktop app and the server
   name: string;
 }

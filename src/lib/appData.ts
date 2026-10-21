@@ -24,3 +24,12 @@ export function appDataDir(): string {
   }
   return path.join(base, APP_FOLDER_NAME);
 }
+
+/**
+ * Where the photos picked for products are kept on this computer: <app data>/OptiPro/images, one file per photo,
+ * named by the photo's id. OPTIPRO_IMAGES_DIR points somewhere else instead, meant for tests so they don't
+ * touch the real folder.
+ */
+export function imagesDir(): string {
+  return process.env.OPTIPRO_IMAGES_DIR?.trim() || path.join(appDataDir(), "images");
+}

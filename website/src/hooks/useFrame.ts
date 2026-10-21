@@ -2,11 +2,11 @@ import { useEffect, useState } from 'react';
 import { apiFrameService } from '../services/frameService';
 import type { Frame } from '../types/frame';
 import { dedupeById, frameCache } from '../utils/itemCache';
-import { resolveImageUrl } from '../utils/resolveImageUrl';
+import { resolveProductImages } from '../utils/resolveImageUrl';
 
 type FetchStatus = 'idle' | 'loading' | 'notFound' | 'error';
 
-const fetchFrameById = dedupeById((id: string) => apiFrameService.getFrameById(id));
+const fetchFrameByCode = dedupeById((code: string) => apiFrameService.getFrameByCode(code));
 
 interface UseFrameResult {
   frame: Frame | null;
@@ -19,25 +19,25 @@ interface UseFrameResult {
 /**
  * The frame is read from the shared cache (see utils/itemCache.ts), which the grid fills when it
  * loads — so opening a frame from the grid renders it immediately with no request. Only on a miss
- * (a link opened directly, or a refresh) does it fetch `/api/frames/:id`, and caches the result.
+ * (a link opened directly, or a refresh) does it fetch `/api/frames/:code`, and caches the result.
  */
-export function useFrame(id: string | undefined): UseFrameResult {
+export function useFrame(code: string | undefined): UseFrameResult {
   const [status, setStatus] = useState<FetchStatus>('idle');
 
   useEffect(() => {
-    if (!id || frameCache.has(id)) return;
+    if (!code || frameCache.has(code)) return;
 
     let isActive = true;
     setStatus('loading');
 
-    fetchFrameById(id)
+    fetchFrameByCode(code)
       .then((result) => {
         if (!isActive) return;
         if (!result) {
           setStatus('notFound');
           return;
         }
-        frameCache.set(id, { ...result, images: result.images.map((url) => resolveImageUrl(url) ?? url) });
+        frameCache.set(code, { ...result, images: resolveProductImages(result) });
         setStatus('idle'); // the frame itself is derived from the cache below; this just re-renders
       })
       .catch(() => {
@@ -47,9 +47,9 @@ export function useFrame(id: string | undefined): UseFrameResult {
     return () => {
       isActive = false;
     };
-  }, [id]);
+  }, [code]);
 
-  const frame = (id ? frameCache.get(id) : undefined) ?? null;
+  const frame = (code ? frameCache.get(code) : undefined) ?? null;
   return {
     frame,
     isLoading: !frame && status !== 'notFound' && status !== 'error',

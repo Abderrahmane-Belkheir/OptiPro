@@ -3,8 +3,8 @@
 //   declare global { interface Window { electronAPI: ElectronApi } }
 // Type-only imports: nothing here ends up in the preload bundle.
 import type {
-  localAccessoryService, localBrandService, localCategoryService, localCustomerService,
-  localFrameService, localImageService, localInvoiceItemService, localInvoiceService, localLensService, localNumberService,
+  localAccessoryService, localBrandService, localCatalogService, localCategoryService, localCustomerService, localDashboardService,
+  localFrameService, localLabelService, localSalesService, localPaymentsService, localOrderDetailsService, localImageService, localInvoiceItemService, localInvoiceService, localLensService, localNumberService,
   localOrderItemService, localOrderService, localPaymentService, localPrescriptionService,
 } from "../local";
 import type { API_METHODS } from "./channels";
@@ -12,6 +12,7 @@ import type { API_METHODS } from "./channels";
 interface Services {
   brands: typeof localBrandService;
   categories: typeof localCategoryService;
+  catalog: typeof localCatalogService;
   frames: typeof localFrameService;
   accessories: typeof localAccessoryService;
   customers: typeof localCustomerService;
@@ -23,6 +24,11 @@ interface Services {
   invoices: typeof localInvoiceService;
   invoiceItems: typeof localInvoiceItemService;
   images: typeof localImageService;
+  dashboard: typeof localDashboardService;
+  labels: typeof localLabelService;
+  sales: typeof localSalesService;
+  paymentsView: typeof localPaymentsService;
+  orderDetails: typeof localOrderDetailsService;
   numbers: typeof localNumberService;
 }
 

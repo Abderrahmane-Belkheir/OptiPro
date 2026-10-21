@@ -51,17 +51,17 @@ export function ItemGalleryModal({ images, title, onClose, children }: ItemGalle
       </button>
 
       <div
-        className="flex max-h-full w-full max-w-5xl flex-col gap-6 overflow-y-auto sm:flex-row sm:items-start"
+        className="flex max-h-full w-full max-w-6xl flex-col gap-6 overflow-y-auto sm:flex-row sm:items-start"
         onClick={(event) => event.stopPropagation()}
       >
-        <div className="flex flex-1 flex-col gap-3">
-          <div className="aspect-square w-full overflow-hidden bg-paper sm:max-w-xl">
+        <div className="flex flex-col gap-3 sm:flex-[3]">
+          <div className="flex w-full items-center justify-center overflow-hidden bg-paper">
             {activeImage && (
               <FadeImage
                 key={activeImage}
                 src={activeImage}
                 alt={title}
-                className="h-full w-full object-cover"
+                className="block h-auto max-h-[75vh] w-full object-contain"
               />
             )}
           </div>
@@ -75,18 +75,20 @@ export function ItemGalleryModal({ images, title, onClose, children }: ItemGalle
                   onClick={() => setActiveIndex(index)}
                   aria-label={t.itemDetail.thumbnailAlt(title, index)}
                   aria-current={index === activeIndex}
-                  className={`h-16 w-16 overflow-hidden border transition-colors ${
+                  className={`h-20 w-20 overflow-hidden border bg-paper transition-colors ${
                     index === activeIndex ? 'border-brass' : 'border-transparent hover:border-paper/40'
                   }`}
                 >
-                  <img src={image} alt="" className="h-full w-full object-cover" />
+                  {/* Opening a product requests ALL of its photos at once (every thumbnail is an <img>, loaded
+                      eagerly), so clicking through them later fetches nothing more. The grid fetched only the first. */}
+                  <img src={image} alt="" loading="eager" className="h-full w-full object-contain" />
                 </button>
               ))}
             </div>
           )}
         </div>
 
-        {children && <div className="flex flex-1 flex-col gap-3 pt-2 text-paper">{children}</div>}
+        {children && <div className="flex flex-col gap-3 pt-2 text-paper sm:flex-[2]">{children}</div>}
       </div>
     </div>
   );

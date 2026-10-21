@@ -243,6 +243,14 @@ export function createImageRouter({ findTenantByKey, productImageExists, insertP
       return;
     }
 
+    // The product may have been deleted while the file was being written: its photo rows went with it, and the delete's own removal of
+    // the files may have run before this one existed. If the row is gone, the file is taken back (a photo nobody can reach).
+    if (!(await productImageExists({ id }))) {
+      await fs.rm(target, { force: true }).catch(() => {});
+      uploadError(res, 404, 'PRODUCT_NOT_FOUND', `This shop's ${type} "${code}" was deleted while the photo was being saved, so nothing was stored.`, { productType: type, productCode: code });
+      return;
+    }
+
     res.status(201).json({ id, url: `/api/images/${id}`, type, code, size: req.body.length, contentType: image.contentType });
   });
 

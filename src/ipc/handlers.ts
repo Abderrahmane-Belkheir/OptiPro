@@ -1,7 +1,7 @@
 import { ipcMain, type IpcMainInvokeEvent } from "electron";
 import {
-  ImageUploadError, LocalDbError, localAccessoryService, localBrandService, localCategoryService, localCustomerService,
-  localFrameService, localImageService, localInvoiceItemService, localInvoiceService, localLensService, localNumberService,
+  ImageUploadError, LocalDbError, localAccessoryService, localBrandService, localCatalogService, localCategoryService, localCustomerService, localDashboardService,
+  localFrameService, localLabelService, localSalesService, localPaymentsService, localOrderDetailsService, localImageService, localInvoiceItemService, localInvoiceService, localLensService, localNumberService,
   localOrderItemService, localOrderService, localPaymentService, localPrescriptionService,
 } from "../local";
 import { API_METHODS, channelFor, type ApiName, type IpcResult } from "./channels";
@@ -12,6 +12,7 @@ type AnyFunction = (...args: unknown[]) => unknown;
 const services: Record<ApiName, Record<string, AnyFunction>> = {
   brands: localBrandService,
   categories: localCategoryService,
+  catalog: localCatalogService,
   frames: localFrameService,
   accessories: localAccessoryService,
   customers: localCustomerService,
@@ -23,6 +24,11 @@ const services: Record<ApiName, Record<string, AnyFunction>> = {
   invoices: localInvoiceService,
   invoiceItems: localInvoiceItemService,
   images: localImageService,
+  dashboard: localDashboardService,
+  labels: localLabelService,
+  sales: localSalesService,
+  paymentsView: localPaymentsService,
+  orderDetails: localOrderDetailsService,
   numbers: localNumberService,
 } as unknown as Record<ApiName, Record<string, AnyFunction>>;
 
@@ -31,7 +37,7 @@ const services: Record<ApiName, Record<string, AnyFunction>> = {
  * result and can never set them from an input (a row saved with synced: true would claim the
  * backend has it when nothing was sent).
  */
-const SYNC_COLUMNS = ["synced", "remoteId"];
+const SYNC_COLUMNS = ["synced"];
 
 /** A copy of the value with the sync columns removed from every row in it (a row, or a list of rows). */
 function withoutSyncColumns(value: unknown): unknown {

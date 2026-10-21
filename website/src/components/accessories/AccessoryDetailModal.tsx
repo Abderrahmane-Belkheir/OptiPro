@@ -7,12 +7,12 @@ import { formatPrice } from '../../utils/formatPrice';
 import { ItemGalleryModal } from '../common/ItemGalleryModal';
 
 export function AccessoryDetailModal() {
-  const { id } = useParams<{ id: string }>();
+  const { code } = useParams<{ code: string }>();
   const navigate = useNavigate();
   const location = useLocation();
   const { locale } = useLocale();
   const t = useTranslations();
-  const { accessory, isLoading, notFound, error } = useAccessory(id);
+  const { accessory, isLoading, notFound, error } = useAccessory(code);
 
   function handleClose() {
     // navigate(-1) only makes sense when we got here from within the app (a background location
@@ -42,7 +42,7 @@ export function AccessoryDetailModal() {
       <h2 className="font-display text-3xl font-medium">{label.name}</h2>
       <p className="text-sm text-paper/70">{label.description}</p>
       <div className="flex items-center gap-3">
-        {accessory.price !== undefined && (
+        {accessory.price != null && (
           <span className="font-medium">{formatPrice(accessory.price, accessory.currency, locale)}</span>
         )}
         {!accessory.inStock && (

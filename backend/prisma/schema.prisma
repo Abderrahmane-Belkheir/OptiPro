@@ -16,7 +16,8 @@ datasource db {
 }
 
 model Brand {
-  id   Int    @id @default(autoincrement())
+  /// A UUID made by the desktop app (the same id on both sides).
+  id   String @id
   name String
 
   tenantKey String @map("tenant_key")
@@ -40,6 +41,8 @@ model Category {
 
 model Frame {
   id       String   @id
+  /// The shop's own short code (what labels and the website show): unique per shop, the public key of a product (abc-123).
+  code     String?
   name     String
   price    Float?
   currency String?
@@ -48,8 +51,8 @@ model Frame {
   colors   String[]
   stock    Int      @default(0)
 
-  brandId    Int      @map("brand_id")
-  brand      Brand    @relation(fields: [brandId], references: [id])
+  brandId    String   @map("brand_id")
+  brand      Brand    @relation(fields: [brandId], references: [id], onDelete: Restrict)
   categoryId Int      @map("category_id")
   category   Category @relation(fields: [categoryId], references: [id])
 
@@ -58,11 +61,14 @@ model Frame {
 
   productImages ProductImage[]
 
+  @@unique([tenantKey, code])
   @@map("frames")
 }
 
 model Accessory {
   id          String   @id
+  /// The shop's own short code (what labels and the website show): unique per shop.
+  code        String?
   name        String
   description String
   price       Float?
@@ -75,6 +81,7 @@ model Accessory {
 
   productImages ProductImage[]
 
+  @@unique([tenantKey, code])
   @@map("accessories")
 }
 

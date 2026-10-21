@@ -69,13 +69,12 @@ const DEFAULT_BATCH_SIZE = 500;
 
 /**
  * The SQL condition "every parent is synced", as a Prisma filter that becomes a join in the query.
- * A required parent must be synced; an optional one must be empty or synced. A frame's brand must
- * also have the remote database's id for it (remoteId), because that is what the frame is sent with.
+ * A required parent must be synced; an optional one must be empty or synced.
  */
 function readyFilter(table: SyncTable): object[] {
   return (SYNC_PARENTS[table] ?? []).map(({ field, optional }) => {
     const relation = field.replace(/Id$/, ""); // customerId -> customer (checked by check-sync-parents)
-    const parentSynced = table === "frames" && field === "brandId" ? { synced: true, remoteId: { not: null } } : { synced: true };
+    const parentSynced = { synced: true };
     return optional ? { OR: [{ [field]: null }, { [relation]: parentSynced }] } : { [relation]: parentSynced };
   });
 }

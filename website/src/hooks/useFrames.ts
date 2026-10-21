@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react';
 import { apiFrameService } from '../services/frameService';
 import type { Frame } from '../types/frame';
 import { frameCache } from '../utils/itemCache';
-import { resolveImageUrl } from '../utils/resolveImageUrl';
+import { resolveProductImages } from '../utils/resolveImageUrl';
 
 /** Keyed by `${categoryId}:${brandId}`, so revisiting a combination already seen this session skips the network call. */
 const framesCache = new Map<string, Frame[]>();
@@ -10,7 +10,7 @@ const framesCache = new Map<string, Frame[]>();
 function resolveFrame(frame: Frame): Frame {
   return {
     ...frame,
-    images: frame.images.map((url) => resolveImageUrl(url) ?? url),
+    images: resolveProductImages(frame),
   };
 }
 
@@ -21,7 +21,7 @@ interface UseFramesResult {
   error: boolean;
 }
 
-export function useFrames(categoryId: number | null, brandId: number | null): UseFramesResult {
+export function useFrames(categoryId: number | null, brandId: string | null): UseFramesResult {
   const [frames, setFrames] = useState<Frame[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState(false);
@@ -52,7 +52,7 @@ export function useFrames(categoryId: number | null, brandId: number | null): Us
       .then((result) => {
         const resolved = result.map(resolveFrame);
         framesCache.set(cacheKey, resolved);
-        resolved.forEach((frame) => frameCache.set(frame.id, frame));
+        resolved.forEach((frame) => frameCache.set(frame.code, frame));
         if (isActive) setFrames(resolved);
       })
       .catch(() => {

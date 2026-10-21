@@ -65,6 +65,7 @@
   const state = { status: "loading", error: "", customers: [], query: "", page: 1, token: 0 };
   let root = null; // the list page element while it is on screen
   let view = null; // "list", "details", or null when another page is showing
+  let detailsFor = null; // the customer the details view shows
   let refs = {};
 
   async function load() {
@@ -470,7 +471,7 @@
           "div",
           { class: "dialog__body", id: "delete-dialog-text" },
           h("p", null, h("strong", null, customer.name), contact ? ` (${contact})` : ""),
-          h("p", null, "This removes the customer record. It may not be possible to undo this."),
+          h("p", null, "This removes the customer, here and on the server. Only a customer with no prescriptions, orders, payments or invoices can be deleted. It cannot be undone."),
           banner,
         ),
         h("div", { class: "dialog__footer" }, cancel, remove),
@@ -490,10 +491,10 @@
       remove.disabled = cancel.disabled = true;
       remove.replaceChildren(h("span", { class: "btn__spinner" }), "Deleting…");
       try {
-        await api.remove(customer.id);
+        const result = await api.delete(customer.id);
         busy = false;
         dialog.close();
-        toast(`${customer.name} was deleted.`);
+        toast(result.sentToServer ? `${customer.name} was deleted.` : `${customer.name} was deleted from this computer. The server will be told when it can be reached.`);
         await load();
       } catch (error) {
         busy = false;
@@ -506,10 +507,7 @@
           await load();
           return;
         }
-        banner.querySelector("span").textContent =
-          kind === "invalid-reference"
-            ? "This customer still has prescriptions, orders, payments or invoices, so it can't be deleted. Remove or reassign those first."
-            : message;
+        banner.querySelector("span").textContent = message; // the service says why (for example: an order uses one of their prescriptions)
         banner.hidden = false;
       }
     });
@@ -521,33 +519,65 @@
   // ---- Mounting ------------------------------------------------------------------------------
   // The page lives in the shell's content area while the URL hash is #customers.
 
-  // ---- Details view (blank for now): just the way back ---------------------------------------
+  // ---- Details view: the customer, and their prescriptions ------------------------------------
 
-  function buildDetails() {
-    return h(
+  function buildDetails(customerId) {
+    const body = h("div", { class: "customer-details" }, h("p", { class: "rx__loading" }, "Loading the customer…"));
+    const section = h(
       "section",
       { class: "page", "aria-label": "Customer details" },
       h("button", { class: "back-button", type: "button", "aria-label": "Back to customers", onclick: () => (location.hash = "customers") }, icon("arrow-left")),
+      body,
     );
+    (async () => {
+      try {
+        const customer = await api.get(customerId);
+        if (!body.isConnected) return; // the person left the page meanwhile
+        if (!customer) {
+          body.replaceChildren(h("div", { class: "state panel-state" }, h("h4", { class: "state__title" }, "This customer no longer exists"), h("button", { class: "btn btn--secondary", type: "button", onclick: () => (location.hash = "customers") }, "Back to customers")));
+          return;
+        }
+        const contact = [customer.phone, customer.email].filter(Boolean).join(" · ");
+        body.replaceChildren(
+          h("div", { class: "customer-head" }, h("span", { class: "avatar-initials", "aria-hidden": "true" }, initials(customer.name)), h("div", null, h("h2", { class: "customer-head__name" }, customer.name), contact ? h("p", { class: "customer-head__contact" }, contact) : null)),
+        );
+        window.mountCustomerInfo(body, customer);
+        window.mountCustomerSummary(body, customer);
+        // The Orders tab opens first; the Prescriptions tab is the existing section, mounted the first time it opens.
+        let rx = null;
+        const tabs = window.mountCustomerTabs(body, [
+          { id: "orders", label: "Orders", mount: (panel) => window.mountCustomerOrders(panel, customer, { showPrescriptions: (id) => showPrescription(id), onPrescriptionChosen: () => rx?.reload(), onNewOrder: () => window.openNewOrderForm(customer) }) },
+          { id: "prescriptions", label: "Prescriptions", mount: (panel) => (rx = window.mountPrescriptions(panel, customer)) },
+        ]);
+        const showPrescription = (id) => {
+          tabs.select("prescriptions", true);
+          setTimeout(() => body.querySelector(`.rx-card[data-id="${id}"]`)?.scrollIntoView({ block: "center" }), 150); // the cards load asynchronously
+        };
+      } catch (error) {
+        if (body.isConnected) body.replaceChildren(h("div", { class: "state panel-state state--error" }, h("h4", { class: "state__title" }, "The customer couldn't be loaded"), h("p", { class: "state__text" }, parseError(error).message)));
+      }
+    })();
+    return section;
   }
 
   function route() {
     const content = document.getElementById("content");
     const [page, detailsId] = location.hash.slice(1).split("/");
     const wanted = page !== "customers" ? null : detailsId ? "details" : "list";
-    if (wanted === view) return;
+    if (wanted === view && (wanted !== "details" || detailsId === detailsFor)) return; // a link to another customer's details rebuilds the view
     closePopup(false);
     root?.remove();
     if (view === "details") content.replaceChildren();
     root = null;
     state.token++; // drop any request still in flight
     view = wanted;
+    detailsFor = wanted === "details" ? detailsId : null;
     if (wanted === "list") {
       root = build();
       content.replaceChildren(root);
       load();
     } else if (wanted === "details") {
-      content.replaceChildren(buildDetails());
+      content.replaceChildren(buildDetails(decodeURIComponent(detailsId)));
       content.querySelector(".back-button").focus();
     }
   }

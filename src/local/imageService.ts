@@ -80,6 +80,14 @@ export interface UploadedImage {
   contentType: string;
 }
 
+/**
+ * The address a photo is fetched from: `server.url` + /api/images/<id>. Throws ConfigError when `server.url`
+ * is missing or not a web address. Builds the address only: nothing is requested.
+ */
+export function photoUrl(photoId: string): string {
+  return `${requireServerUrl()}/api/images/${encodeURIComponent(photoId)}`;
+}
+
 /** What `choose` reports: some files may go through while others fail, so nothing is thrown per file. */
 export interface UploadBatch {
   uploaded: UploadedImage[];
@@ -90,7 +98,7 @@ export interface UploadBatch {
 }
 
 /** The type of an image from its first bytes (a file's name and the caller's word prove nothing). */
-function sniffContentType(bytes: Uint8Array): string | null {
+export function sniffContentType(bytes: Uint8Array): string | null {
   const starts = (...signature: number[]) => signature.every((byte, i) => bytes[i] === byte);
   if (starts(0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a)) return "image/png";
   if (starts(0xff, 0xd8, 0xff)) return "image/jpeg";

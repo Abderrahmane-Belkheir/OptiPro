@@ -1,7 +1,7 @@
 {
   "name": "Optician",
   "version": "1.0.0",
-  "description": "",
+  "description": "OptiPro: optician shop management (desktop app).",
   "main": "dist/main.js",
   "scripts": {
     "db:generate": "node scripts/generate-db.mjs",
@@ -9,14 +9,23 @@
     "build": "tsc",
     "postbuild": "node scripts/copy-prisma-client.mjs && node scripts/check-sync-parents.mjs",
     "check:sync-parents": "node scripts/check-sync-parents.mjs",
-    "start": "npm run build && electron ."
+    "start": "npm run build && electron .",
+    "check:package": "node scripts/check-package.mjs",
+    "sync:table-api": "node scripts/sync-table-api.mjs",
+    "check:table-api": "node scripts/sync-table-api.mjs --check",
+    "pack": "npm run build && npm run check:package && electron-builder --win --dir",
+    "dist": "npm run build && npm run check:package && electron-builder --win nsis",
+    "icon:demo": "node scripts/make-demo-icon.mjs",
+    "test": "node tests/run.cjs"
   },
   "devDependencies": {
     "@electron/rebuild": "^4.2.1",
     "@types/better-sqlite3": "^9.6.0",
     "@types/node": "^26.6.5",
-    "@types/pg": "^8.23.1",
+    "@types/qrcode": "^1.5.6",
     "electron": "^42.11.14",
+    "electron-builder": "^26.15.3",
+    "jsqr": "^1.4.0",
     "prisma": "^7.10.0",
     "typescript": "^6.0.3"
   },
@@ -26,11 +35,59 @@
     "@prisma/client": "^7.10.0",
     "better-sqlite3": "^12.11.1",
     "dotenv": "^18.0.8",
-    "pg": "^8.23.1"
+    "qrcode": "^1.5.4"
   },
   "allowScripts": {
     "prisma@7.10.0": true,
     "@prisma/engines@7.10.0": true,
     "better-sqlite3@12.11.1": true
+  },
+  "author": "OptiPro",
+  "build": {
+    "appId": "com.optipro.desktop",
+    "productName": "OptiPro",
+    "copyright": "OptiPro",
+    "directories": {
+      "output": "release"
+    },
+    "files": [
+      "dist/**/*",
+      "renderer/**/*",
+      "package.json",
+      "build/icon.png"
+    ],
+    "extraResources": [
+      {
+        "from": "resources/default-config.properties",
+        "to": "default-config.properties"
+      }
+    ],
+    "asar": true,
+    "asarUnpack": [
+      "**/node_modules/better-sqlite3/**"
+    ],
+    "npmRebuild": false,
+    "win": {
+      "target": [
+        {
+          "target": "nsis",
+          "arch": [
+            "x64"
+          ]
+        }
+      ],
+      "artifactName": "${productName}-Setup-${version}.${ext}",
+      "icon": "build/icon.ico"
+    },
+    "nsis": {
+      "oneClick": false,
+      "perMachine": true,
+      "allowElevation": true,
+      "allowToChangeInstallationDirectory": true,
+      "createDesktopShortcut": true,
+      "createStartMenuShortcut": true,
+      "shortcutName": "OptiPro",
+      "deleteAppDataOnUninstall": false
+    }
   }
 }

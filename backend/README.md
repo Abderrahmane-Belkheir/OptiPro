@@ -27,15 +27,15 @@ both together.
 - `GET /api/catalog` → `{ categories: { id, name, url }[], brands: { id, name }[] }` —
   `services/catalogService.js`. Categories are global; brands are filtered to the requesting
   tenant.
-- `GET /api/frames?brandId=&categoryId=` → `{ id, name, brand, category, price?, currency?, images: string[], shape?, colors?, inStock }[]` (`images` are photo **codes**, see below)
+- `GET /api/frames?brandId=&categoryId=` → `{ code, name, brand, category, price?, currency?, images: string[], shape?, colors?, inStock }[]` (`images` are photo **codes**, see below)
   — `services/frameService.js` (400 if either query param is missing). Filtered to the requesting
-  tenant.
-- `GET /api/frames/:id` → same shape as above, a single frame. 404 if not found — another
-  tenant's id is invisible to this tenant (RLS), so it 404s too. The website only calls it when an
+  tenant. A frame goes out with its short **code** (unique per shop), never its internal id; a frame that has no code yet is not listed.
+- `GET /api/frames/:code` → same shape as above, a single frame, found by its code within the requesting shop (the lookup is by shop and code: two shops can have the same code; the code is read in lowercase). 404 if not found — another
+  tenant's frame is invisible to this tenant, so it 404s too. The internal id opens nothing. The website only calls it when an
   item's link is opened directly and the item wasn't already loaded in the browser.
-- `GET /api/accessories` → `{ id, name, description, price?, currency?, images: string[], inStock }[]` (`images` are photo **codes**) —
-  `services/accessoryService.js`. Filtered to the requesting tenant.
-- `GET /api/accessories/:id` → same shape as above, a single accessory. 404 if not found (or not
+- `GET /api/accessories` → `{ code, name, description, price?, currency?, images: string[], inStock }[]` (`images` are photo **codes**) —
+  `services/accessoryService.js`. Filtered to the requesting tenant; an accessory goes out with its code, and one without a code is not listed.
+- `GET /api/accessories/:code` → same shape as above, a single accessory, found by its code within the requesting shop. 404 if not found (or not
   this tenant's); used the same way as the frame one.
 - `GET /api/infos` → `{ name, social: { label, url }[], contact: { address, phone, email } }` —
   `services/siteInfoService.js`. 404 if no tenant matches the requesting host.
@@ -117,30 +117,20 @@ sentences, and a failed upload never leaves a row or a file behind:
 | 404 | `PRODUCT_NOT_FOUND` | this shop has no such frame/accessory | `productType`, `productCode` |
 | 404 | `WRONG_ADDRESS` | the photo id is missing from the address | `expected: "POST /api/images/{code}/{id}?type=frame\|accessory"` |
 | 405 | `METHOD_NOT_ALLOWED` | not a POST | `Allow: POST` |
-| 409 | `PRODUCT_IN_USE` | (delete a frame/accessory) other records still refer to it; nothing was deleted | |
+| 409 | `IN_USE` | (table API delete) other records still refer to it; nothing was deleted | |
 | **409** | **`PHOTO_ID_EXISTS`** | **a photo with this id already exists; nothing was stored or overwritten** | **`id`, `retry: "new-id"`: make up another photo id and send the request again** |
 | 500 | `SAVE_FAILED` | the file could not be saved (the row was removed again) | `retry: "same-request"` |
 | 500 | `FILE_REMOVAL_FAILED` | (delete) the record was deleted but its file could not be removed from the disk | `id`, `recordDeleted: true`; contact the server's administrator with the id |
 | 500 | `SERVER_ERROR` | an unexpected problem on the server | `retry: "same-request"` |
 
-**Deleting a frame or an accessory** (and its photos): `DELETE /api/frames/<code>` or
-`DELETE /api/accessories/<code>` with `Authorization: Bearer <tenant key>`; `<code>` is the id of the
-frame or accessory.
-
-1. The tenant key must exist (401 otherwise) and the code must be a plain id (400 `INVALID_PRODUCT_ID`).
-2. **One transaction** (`deleteProductWithPhotos` in `lib/productImageStore.js`), filtered by the code
-   **and the tenant key**: it locks the product (`SELECT … FOR UPDATE`), **fetches the ids of all its
-   `product_images` rows**, and deletes the product (its photo rows go with it: the foreign key cascades).
-   No such product for this shop (another shop's product with the same code matches nothing) → 404
-   `PRODUCT_NOT_FOUND`; other records refusing the delete → 409 `PRODUCT_IN_USE`, nothing changes. (An
-   order line that points at a frame does not refuse: its reference is cleared.) The lock makes an upload
-   that is running for the same product at that moment either finish first (its photo is then in the
-   fetched list) or find the product gone (404), so no file is left behind.
-3. **Only after the transaction succeeded**, the files of exactly the fetched ids are deleted from the
-   disk. A file that cannot be removed is reported, the others are still removed.
+**Deleting a frame or an accessory** goes through the table API: `POST /api/table/frames?action=delete` (or `accessories`) with the
+condition as the body, e.g. `{ "id": "<code>" }` (`lib/tableApi.js`, `lib/tableCore.js`). In one statement the ids of ALL the photos of the
+matching products are fetched and the products are deleted (their photo rows go with them: the foreign key cascades). Only after that
+succeeded are the photos' files removed, one by one; a file that cannot be removed is reported (500 `FILE_REMOVAL_FAILED`,
+`recordDeleted: true`) while the others are still removed. Deleting photo rows (`product_images`) removes their files the same way.
 
 ```
-200 { "id": "<code>", "type": "frame", "deleted": true, "photos": { "deleted": 3, "filesRemoved": 3 } }
+200 { "table": "frames", "action": "delete", "count": 1, "photos": { "deleted": 3, "filesRemoved": 3 } }
 500 FILE_REMOVAL_FAILED { ..., "recordDeleted": true, "photos": { "deleted": 3, "filesRemoved": 2, "filesFailed": ["<photo id>"] } }
 ```
 

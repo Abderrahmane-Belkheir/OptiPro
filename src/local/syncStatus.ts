@@ -14,6 +14,8 @@ export type UnsyncedRow =
   | { table: "frames"; row: NonNullable<Awaited<ReturnType<typeof localFrameService.get>>> }
   | { table: "accessories"; row: NonNullable<Awaited<ReturnType<typeof localAccessoryService.get>>> }
   | { table: "customers"; row: NonNullable<Awaited<ReturnType<typeof localCustomerService.get>>> }
+  | { table: "product_images"; row: { id: string; synced: boolean; frameId: string | null; accessoryId: string | null } }
+  | { table: "pending_deletions"; row: { id: number; kind: string; targetId: string; attempts: number; lastError: string | null } }
   | { table: ShopTable; row: Record<string, unknown> };
 
 /** The shop-management tables, in the order they depend on each other (parents first). */
@@ -31,7 +33,7 @@ type ShopTable = (typeof SHOP_TABLES)[number][0];
 
 /**
  * Looks for the first row with `synced = false` and returns it with its table. Tables are checked
- * parents first — brands, customers, frames, accessories, then lenses, prescriptions, orders, order
+ * parents first — brands, customers, frames, accessories, product photos, then lenses, prescriptions, orders, order
  * lines, payments, invoices, invoice lines, number sequences. Finding one sets `syncState.synced`
  * to false; finding none leaves it true and returns null.
  */
@@ -50,6 +52,17 @@ export async function checkUnsynced(): Promise<UnsyncedRow | null> {
 
   const accessory = await sqlitePrisma.accessory.findFirst({ where, orderBy: { id: "asc" } });
   if (accessory) return found({ table: "accessories", row: (await localAccessoryService.get(accessory.id))! });
+
+  // A photo that is not on the server yet counts too (product_images has no tenant column: its frame or accessory has).
+  const photo = await sqlitePrisma.productImage.findFirst({
+    where: { synced: false, OR: [{ frame: { is: { tenantKey } } }, { accessory: { is: { tenantKey } } }] },
+    orderBy: { id: "asc" },
+  });
+  if (photo) return found({ table: "product_images", row: photo });
+
+  // A deletion the server has not been told about yet is work still to send, too.
+  const deletion = await sqlitePrisma.pendingDeletion.findFirst({ orderBy: { id: "asc" } });
+  if (deletion) return found({ table: "pending_deletions", row: deletion });
 
   for (const [table, delegate] of SHOP_TABLES) {
     const row = await db[delegate].findFirst({ where, orderBy: { createdAt: "asc" } });

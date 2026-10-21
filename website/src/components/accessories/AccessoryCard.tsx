@@ -12,19 +12,20 @@ export function AccessoryCard({ accessory }: { accessory: Accessory }) {
   const { accessoriesSection } = useTranslations();
   const label = translateAccessory(accessory, locale);
   const location = useLocation();
-  const detailPath = `/accessories/${accessory.id}`;
+  const detailPath = `/accessories/${accessory.code}`;
 
   return (
     <article className="group flex flex-col transition-transform duration-500 ease-out hover:-translate-y-1">
       <Link
         to={detailPath}
         state={{ background: location }}
-        className="aspect-square w-full overflow-hidden bg-ivory"
+        className="block w-full overflow-hidden bg-ivory"
       >
+        {/* The grid view fetches and shows ONLY the first photo; the rest are fetched when the product is opened (all together, by the detail modal). */}
         <FadeImage
           src={accessory.images[0]}
           alt={label.name}
-          className="h-full w-full object-cover group-hover:scale-105"
+          className="block h-auto min-h-40 w-full object-contain group-hover:scale-105"
           loading="lazy"
         />
       </Link>
@@ -36,7 +37,7 @@ export function AccessoryCard({ accessory }: { accessory: Accessory }) {
         </h3>
         <p className="text-sm text-charcoal-soft">{label.description}</p>
         <div className="mt-1 flex items-center justify-between gap-2">
-          {accessory.price !== undefined && (
+          {accessory.price != null && (
             <span className="font-medium text-charcoal">
               {formatPrice(accessory.price, accessory.currency, locale)}
             </span>

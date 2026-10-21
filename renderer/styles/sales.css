@@ -1,0 +1,30 @@
+/* The Sales page (pages/sales.js): the orders list. */
+.sales-toolbar { flex-wrap: wrap; gap: 12px; }
+.sales-table .sales-money { text-align: end; font-variant-numeric: tabular-nums; white-space: nowrap; }
+.sales-money--due { font-weight: 600; }
+.sales-customer { color: inherit; text-decoration: none; font-weight: 500; }
+.sales-customer:hover { text-decoration: underline; }
+.sales-overdue { display: inline-block; margin-inline-start: 8px; padding: 1px 6px; border-radius: 999px; font-size: 11px; font-weight: 600; color: #b42318; background: rgba(180, 35, 24, 0.12); }
+.sales-row--cancelled td { opacity: 0.6; }
+.chip__count { margin-inline-start: 6px; font-variant-numeric: tabular-nums; opacity: 0.7; }
+.sales-period { display: flex; gap: 8px; flex-wrap: wrap; }
+.sales-period__select { font: inherit; padding: 6px 8px; border-radius: 8px; border: 1px solid var(--border, #d0d5dd); background: var(--surface, #fff); color: inherit; }
+.sales-period__select:disabled { opacity: 0.5; }
+/* The order page (pages/orderDetails.js). */
+.od-back { display: inline-flex; align-items: center; gap: 6px; color: inherit; text-decoration: none; opacity: 0.75; margin-bottom: 8px; }
+.od-back:hover { opacity: 1; text-decoration: underline; }
+.od-section { display: flex; flex-direction: column; gap: 8px; margin-top: 20px; }
+.od-section__title { margin: 0; font-size: 15px; font-weight: 600; }
+.od-pay__row { display: flex; gap: 12px; align-items: flex-end; flex-wrap: wrap; }
+.od-field { display: flex; flex-direction: column; gap: 4px; }
+.od-field--grow { flex: 1; min-width: 180px; }
+.od-field__label { font-size: 12px; opacity: 0.7; }
+.od-input { font: inherit; padding: 7px 10px; border-radius: 8px; border: 1px solid var(--border, #d0d5dd); background: var(--surface, #fff); color: inherit; min-width: 140px; }
+.od-input--wide { width: 100%; }
+.od-hint { margin: 4px 0 0; font-size: 12px; opacity: 0.7; }
+.od-empty { margin: 0; padding: 16px; opacity: 0.7; }
+.od-error { margin: 12px 0 0; padding: 8px 12px; border-radius: 8px; color: #b42318; background: rgba(180, 35, 24, 0.1); }
+.od-notes { margin: 0; white-space: pre-wrap; }
+.sales-table tbody tr:has(.sales-order-link):hover { background: rgba(127, 127, 127, 0.06); }
+.sales-order-link { color: inherit; text-decoration: none; font-weight: 600; }
+.sales-order-link:hover { text-decoration: underline; }

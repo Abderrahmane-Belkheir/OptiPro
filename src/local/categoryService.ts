@@ -1,36 +1,14 @@
-import { sqlitePrisma } from "../lib/sqliteClient";
 import type { Category } from "../services/types";
-import { translateError } from "./errors";
+import { STATIC_CATEGORIES } from "./staticCategories";
 
-
-/**
- * Categories are global (not per tenant) and read-only, so they are read and stored as a whole —
- * `replaceAll` saves a fresh copy of the list.
- */
+/** Categories are fixed in the code (STATIC_CATEGORIES): they are read from there and can't be changed. */
 export const localCategoryService = {
-  list(): Promise<Category[]> {
-    return sqlitePrisma.category.findMany({ orderBy: { id: "asc" } });
+  async list(): Promise<Category[]> {
+    return STATIC_CATEGORIES.map((c) => ({ ...c }));
   },
 
-  get(id: number): Promise<Category | null> {
-    return sqlitePrisma.category.findUnique({ where: { id } });
-  },
-
-  /** Upserts each category by id, so frames pointing at them stay valid. */
-  async replaceAll(categories: Category[]): Promise<Category[]> {
-    try {
-      await sqlitePrisma.$transaction(
-        categories.map((c) =>
-          sqlitePrisma.category.upsert({
-            where: { id: c.id },
-            create: { id: c.id, name: c.name, imageUrl: c.imageUrl },
-            update: { name: c.name, imageUrl: c.imageUrl },
-          }),
-        ),
-      );
-    } catch (err) {
-      translateError(err, "Store categories");
-    }
-    return localCategoryService.list();
+  async get(id: number): Promise<Category | null> {
+    const found = STATIC_CATEGORIES.find((c) => c.id === id);
+    return found ? { ...found } : null;
   },
 };

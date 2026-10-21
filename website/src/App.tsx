@@ -25,12 +25,12 @@ function App() {
       <Navbar storeName={siteInfo?.name ?? ''} />
       <main>
         {/* Registered here too (not just in the overlay below) so a direct link or a page refresh
-            on /frames/:id or /accessories/:id still renders something — with no background state,
+            on /frames/:code or /accessories/:code still renders something — with no background state,
             backgroundLocation is undefined and this tree renders the real current location. */}
         <Routes location={backgroundLocation ?? location}>
           <Route path="/" element={<HomePage />} />
-          <Route path="/frames/:id" element={<FrameDetailModal />} />
-          <Route path="/accessories/:id" element={<AccessoryDetailModal />} />
+          <Route path="/frames/:code" element={<FrameDetailModal />} />
+          <Route path="/accessories/:code" element={<AccessoryDetailModal />} />
         </Routes>
       </main>
       <Footer siteInfo={siteInfo} />
@@ -39,8 +39,8 @@ function App() {
           rendered exactly as it was and the detail route renders as an overlay on top of it. */}
       {backgroundLocation && (
         <Routes>
-          <Route path="/frames/:id" element={<FrameDetailModal />} />
-          <Route path="/accessories/:id" element={<AccessoryDetailModal />} />
+          <Route path="/frames/:code" element={<FrameDetailModal />} />
+          <Route path="/accessories/:code" element={<AccessoryDetailModal />} />
         </Routes>
       )}
     </div>

@@ -1,0 +1,20 @@
+# Cloudflare Pages project settings (used by `npx wrangler pages deploy dist` and `npx wrangler pages dev dist`).
+name = "optician"
+pages_build_output_dir = "./dist"
+compatibility_date = "2025-06-01"
+
+# The photos. Create the bucket once:  npx wrangler r2 bucket create optician-images
+[[r2_buckets]]
+binding = "IMAGES"
+bucket_name = "optician-images"
+
+[vars]
+# The most items one list request returns when the caller gives no ?limit= (1-200). Lists longer than this
+# come in pages: X-Next-Cursor says where the next one starts, X-Total-Count how many there are in all.
+LIST_LIMIT = "200"
+# How many seconds Cloudflare keeps an answer for the website (frames, accessories, catalog, infos) before asking the database again.
+CACHE_SECONDS = "30"
+
+# DATABASE_URL (the Neon connection string) is a SECRET, so it is not written here:
+#   npx wrangler pages secret put DATABASE_URL --project-name optician
+# Local testing: put DATABASE_URL=... and DEV_HOST=<a shop's host name> in a file named .dev.vars (never commit it).

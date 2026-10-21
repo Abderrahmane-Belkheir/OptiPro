@@ -11,6 +11,14 @@ export class LocalDbError extends Error {
   }
 }
 
+/** The server could not be reached (offline, DNS, timeout). Expected, not a bug: whatever was being sent stays unsynced for a later pass. */
+export class RemoteUnreachableError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = "RemoteUnreachableError";
+  }
+}
+
 /** Turns Prisma's error codes into LocalDbErrors; anything unrecognised is rethrown untouched. */
 export function translateError(err: unknown, what: string): never {
   if (err instanceof LocalDbError) throw err;

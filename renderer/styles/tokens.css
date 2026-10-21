@@ -42,6 +42,8 @@
   --color-text-muted: #7d7464;
 
   /* Errors and destructive actions. */
+  --color-success: #2f6b4a;
+  --color-success-soft: rgb(47 107 74 / 0.1);
   --color-danger: #a8322a;
   --color-danger-strong: #8a2620;
 

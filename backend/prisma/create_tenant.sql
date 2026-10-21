@@ -8,22 +8,29 @@
 --     p_email => 'hello@maison-clair.example.com'
 --   );
 --   -> postgresql://tenant_0ad726ca55c3479787fe5b22f4d5d035:0ad726ca-55c3-4797-87fe-22b5f334d035@ep-xxxx.../neondb?sslmode=require
---"C:\Users\HP\AppData\Local\Temp\op-choose-KtSyEx\picks\front.png" "C:\Users\HP\AppData\Local\Temp\op-choose-KtSyEx\picks\side.png" "C:\Users\HP\AppData\Local\Temp\op-choose-KtSyEx\picks\notes.png"
 
 -- What it does, in one transaction (all or nothing):
 --   1. inserts the shop into tenants and reads back the key the database generated for it;
---   2. creates a login role named after the key, with the key itself as its password;
---   3. GRANT CONNECT on this database, USAGE on schema public, SELECT on categories;
---   4. on every public table that has a text tenant_key column: grants SELECT, INSERT, UPDATE, DELETE (and USAGE
---      on the table's id sequence, if it has one), and creates a row-level-security policy so the role only sees
---      and writes rows carrying its own key;
---   5. returns the connection URL for that role (this is the app's `database.url`).
+--   2. creates ONE login role named after the key, with the key itself as its password (this is the only role: the
+--      desktop app and the shop's website server both connect with it);
+--   3. GRANT CONNECT on this database and USAGE on schema public;
+--   4. categories: SELECT only (they are the same for every shop; no policy);
+--      tenants:    SELECT only, with a row-level-security policy so the role reads ONLY ITS OWN ROW (key = its key);
+--   5. on every other public table that has a text tenant_key column: grants SELECT, INSERT, UPDATE and DELETE (and
+--      USAGE on the table's id sequence, if it has one) and creates a row-level-security policy so the role only
+--      sees and writes rows carrying its own key. DELETE is NOT granted on the tables whose rows must never be
+--      deleted (the money trail and its numbering): orders, order_items, payments, invoices, invoice_items and
+--      number_sequences. They get SELECT, INSERT and UPDATE only (cancel or void them with a status instead);
+--   6. returns the connection URL for that role (this is the app's `database.url`).
 --
 -- Notes
 --   * Run it as a role that may create roles (the owner). The URL contains the password: treat it as a secret.
 --   * The server address can't be known from inside Postgres, so it is passed in.
 --   * Shops that existed before this function have policies that apply to every login: run
 --     limit_existing_policies.sql once, before adding a second shop.
+
+DROP FUNCTION IF EXISTS create_backend_role(text, text);
+DROP FUNCTION IF EXISTS create_tenant(text, text, text, text, text, text, text, text);
 
 CREATE OR REPLACE FUNCTION create_tenant(
   p_host          text,
@@ -44,6 +51,9 @@ DECLARE
   v_db   text := current_database();
   t      record;
   v_seq  text;
+  v_privs text;
+  -- rows of these tables are never deleted
+  v_keep constant text[] := ARRAY['orders', 'order_items', 'payments', 'invoices', 'invoice_items', 'number_sequences'];
 BEGIN
   IF coalesce(btrim(p_host), '') = '' THEN RAISE EXCEPTION 'host is required'; END IF;
   IF coalesce(btrim(p_name), '') = '' THEN RAISE EXCEPTION 'name is required'; END IF;
@@ -60,17 +70,21 @@ BEGIN
 
   -- 2. the login: named after the key, the key is its password
   v_role := 'tenant_' || replace(v_key, '-', '');
-  EXECUTE format('CREATE ROLE %I LOGIN PASSWORD %L', v_role, v_key);
+  EXECUTE format('CREATE ROLE %I LOGIN NOSUPERUSER NOCREATEDB NOCREATEROLE NOREPLICATION NOBYPASSRLS PASSWORD %L', v_role, v_key);
 
   -- 3. the grants
   EXECUTE format('GRANT CONNECT ON DATABASE %I TO %I', v_db, v_role);
   EXECUTE format('GRANT USAGE ON SCHEMA public TO %I', v_role);
-  EXECUTE format('GRANT SELECT ON categories TO %I', v_role);
 
-  -- 4. the shop's tables (every public table with a text tenant_key column): select/insert/update/delete,
-  --    the id sequence where there is one, and row-level security so this role sees and writes only rows
-  --    carrying its own key. The policy is named after the role and limited to it (TO), so
-  --    several shops can live side by side without seeing each other.
+  -- 4. categories: read only, the same for every shop.
+  --    tenants: read only, and only the shop's own row.
+  EXECUTE format('GRANT SELECT ON categories TO %I', v_role);
+  EXECUTE format('GRANT SELECT ON tenants TO %I', v_role);
+  EXECUTE format('CREATE POLICY %I ON tenants FOR SELECT TO %I USING (key = %L)', 'tenant_select_' || v_role, v_role, v_key);
+
+  -- 5. the shop's tables (every other public table with a text tenant_key column): the id sequence where there
+  --    is one, and row-level security so this role sees and writes only rows carrying its own key. The policy is
+  --    named after the role and limited to it (TO), so several shops can live side by side without seeing each other.
   FOR t IN
     SELECT c.table_schema, c.table_name
     FROM information_schema.columns c
@@ -80,8 +94,9 @@ BEGIN
       AND c.table_schema = 'public'
       AND c.udt_name = 'text'
   LOOP
+    v_privs := CASE WHEN t.table_name = ANY (v_keep) THEN 'SELECT, INSERT, UPDATE' ELSE 'SELECT, INSERT, UPDATE, DELETE' END;
     EXECUTE format('ALTER TABLE %I.%I ENABLE ROW LEVEL SECURITY', t.table_schema, t.table_name);
-    EXECUTE format('GRANT SELECT, INSERT, UPDATE, DELETE ON %I.%I TO %I', t.table_schema, t.table_name, v_role);
+    EXECUTE format('GRANT %s ON %I.%I TO %I', v_privs, t.table_schema, t.table_name, v_role);
     -- a table whose id comes from a sequence (brands) needs it to insert
     v_seq := pg_get_serial_sequence(format('%I.%I', t.table_schema, t.table_name), 'id');
     IF v_seq IS NOT NULL THEN
@@ -93,7 +108,7 @@ BEGIN
     );
   END LOOP;
 
-  -- 5. the connection URL
+  -- 6. the connection URL
   RETURN format('postgresql://%s:%s@%s/%s?sslmode=require', v_role, v_key, btrim(p_server), v_db);
 END;
 $$;
