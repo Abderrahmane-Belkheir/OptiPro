@@ -22,11 +22,23 @@ const TESTS = [
   { file: "editMenu.test.cjs", how: "node" },
   { file: "setupRetry.test.cjs", how: "node" },
   { file: "refusalPaths.test.cjs", how: "node" },
+  { file: "lensMatching.test.cjs", how: "node" },
+  { file: "lensMatching.service.test.cjs", how: "node" },
+  { file: "productSearch.test.cjs", how: "node" },
+  { file: "newOrder.window.test.cjs", how: "node" },
+  { file: "orderPlacement.test.cjs", how: "node" },
+  { file: "documents.test.cjs", how: "node" },
+  { file: "suppliers.test.cjs", how: "node" },
+  { file: "suppliers.window.test.cjs", how: "node" },
+  { file: "shopInfo.test.cjs", how: "node" },
+  { file: "settings.window.test.cjs", how: "node" },
+  { file: "newOrder.place.window.test.cjs", how: "node" },
   { file: "expiry.window.test.cjs", how: "node" },
   { file: "refusal.test.cjs", how: "node" },
   { file: "expiryCheck.test.cjs", how: "node" },
   { file: "licenseExpiry.test.cjs", how: "node" },
   { file: "register.test.cjs", how: "node" },
+  { file: "infos.test.cjs", how: "node" },
 ];
 
 const filter = process.argv[2] ?? "";

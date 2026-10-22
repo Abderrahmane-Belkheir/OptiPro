@@ -1,8 +1,8 @@
 import { callTable } from "./tableApiClient";
 
 /** What can be deleted on the server, and the table it lives in. */
-export type DeletionKind = "frame" | "accessory" | "photo" | "brand" | "customer" | "prescription" | "lens";
-const TABLE: Record<DeletionKind, string> = { frame: "frames", accessory: "accessories", photo: "product_images", brand: "brands", customer: "customers", prescription: "prescriptions", lens: "lenses" };
+export type DeletionKind = "frame" | "accessory" | "photo" | "brand" | "customer" | "prescription" | "lens" | "supplier";
+const TABLE: Record<DeletionKind, string> = { frame: "frames", accessory: "accessories", photo: "product_images", brand: "brands", customer: "customers", prescription: "prescriptions", lens: "lenses", supplier: "suppliers" };
 
 /**
  * What asking the server to delete something came to.

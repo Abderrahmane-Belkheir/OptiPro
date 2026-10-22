@@ -210,15 +210,16 @@ export const localDashboardService = {
    */
   async syncStatus(): Promise<SyncStatus> {
     const tenantKey = await currentTenantKey();
-    const tables = ["brand", "customer", "frame", "accessory", "lens", "prescription", "order", "orderItem", "payment", "invoice", "invoiceItem", "numberSequence"];
-    const [counts, photos, deletions] = await Promise.all([
+    const tables = ["brand", "customer", "frame", "accessory", "lens", "supplier", "prescription", "order", "orderItem", "payment", "invoice", "invoiceItem", "numberSequence"];
+    const [counts, photos, deletions, shopInfo] = await Promise.all([
       Promise.all(tables.map((t) => db[t].count({ where: { tenantKey, synced: false } }))),
       sqlitePrisma.productImage.count({ where: { synced: false, OR: [{ frame: { is: { tenantKey } } }, { accessory: { is: { tenantKey } } }] } }),
       sqlitePrisma.pendingDeletion.count(),
+      sqlitePrisma.licenseExpiry.count({ where: { synced: false } }), // the shop's details edited in the settings, not yet confirmed by the server
     ]);
     return {
       lastSyncedAt: lastGoodSyncRun()?.finishedAt ?? null,
-      unsyncedCount: counts.reduce((a, b) => a + b, 0) + photos + deletions,
+      unsyncedCount: counts.reduce((a, b) => a + b, 0) + photos + deletions + shopInfo,
       reachable: serverContact().reachable && lastSyncRun()?.outcome !== "database-unavailable",
     };
   },

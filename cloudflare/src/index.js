@@ -11,6 +11,7 @@
 //   POST   /api/images/:code/:id?type=frame|accessory     upload a photo           (Authorization: Bearer <tenant key>)
 //   DELETE /api/images/:id                                delete a photo           (same)
 //   POST   /api/register                                  the shop sends its information; the tenants row is updated (Authorization: Bearer <tenant key>, which must exist and not be expired)
+//   POST   /api/infos                                     (same address) a registered shop sends its information again; the fields that have a value update the tenants row (Authorization: Bearer <tenant key>, whose licence must be running)
 //   GET    /api/expiry                                    the day the shop's licence ends: { expiry: "YYYY-MM-DD" } (Authorization: Bearer <tenant key>; 401 UNAUTHORIZED for an unknown, malformed, never registered or expired key)
 //   POST   /api/table/:name?action=insert|update|delete   the table API: writes rows (same); deleting a frame or an accessory (or a photo row) also removes its photos' files from R2
 //
@@ -24,6 +25,7 @@ import { deletePhoto, getPhoto, uploadPhoto } from './photos.js';
 import { tableRoute } from './tableApi.js';
 import { registerRoute } from './register.js';
 import { expiryRoute } from './expiry.js';
+import { updateInfosRoute } from './infos.js';
 import { accessoriesRoute, accessoryRoute, catalogRoute, framesRoute, frameRoute, infosRoute } from './reads.js';
 
 const METHODS_FOR = (allowed) => ({ Allow: allowed.join(', ') });
@@ -58,7 +60,9 @@ export function createWorker({ makeSql = defaultSql } = {}) {
             return read ? catalogRoute(request, env, ctx, sql, host) : notAllowed('GET', 'HEAD');
           case 'infos':
             if (first !== undefined) break;
-            return read ? infosRoute(request, env, ctx, sql, host) : notAllowed('GET', 'HEAD');
+            // (the same address: GET reads the shop's public information, POST lets the shop update it)
+            if (request.method === 'POST') return updateInfosRoute(request, env, sql);
+            return read ? infosRoute(request, env, ctx, sql, host) : notAllowed('GET', 'HEAD', 'POST');
           case 'frames':
             if (second !== undefined) break;
             if (first === undefined) return read ? framesRoute(request, env, ctx, sql, host, url) : notAllowed('GET', 'HEAD');

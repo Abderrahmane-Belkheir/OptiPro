@@ -12,11 +12,19 @@ export { localCustomerService } from "./customerService";
 export { ensureProductCodes, newProductCode, normalizeCode, randomCode, type ProductKind } from "./productCodes";
 export { localFrameService } from "./frameService";
 export { localSalesService, ORDER_STATUSES, type OrderStatus, type SaleRow, type SalesList } from "./salesService";
-export { localLicenseService } from "./licenseService";
+export { localLicenseService, type ShopDetails, type ShopInput } from "./licenseService";
+export { localShopInfoService, postInfos, SHOP_INFO_TIMEOUT_MS, type InfosOutcome, type SaveShopInfoResult, type ShopInfo, type ShopInfoPushResult } from "./shopInfoService";
+export { validateShopInfoForm, SHOP_INFO_FIELDS, type ShopInfoField, type ShopInfoForm } from "./shopInfoValidation";
 export { REFUSED_EXPIRY_DAY, setUnauthorizedHandler } from "./licenseGuard";
 export { checkExpiryWithServer, type ExpiryCheck } from "./licenseCheck";
 export { localPaymentsService, type PaymentRow, type PaymentsList } from "./paymentsService";
 export { localOrderDetailsService, type OrderDetails, type OrderLine, type OrderPayment } from "./orderDetails";
+export { localOrderPlacementService, type PlaceOrderResult } from "./orderPlacement";
+export { localSupplierService, type SaveSupplierResult } from "./supplierService";
+export { validateSupplierForm, kindsOf, SUPPLIER_KINDS, type CleanSupplier, type SupplierForm, type SupplierKind } from "./supplierValidation";
+export { localDocumentService, setDocumentPrinter, invoiceDoc, labDoc, type DocumentKind, type DocumentPrinter, type DocumentPrintResult, type IssuedInvoice } from "./documentService";
+export { invoiceHtml, labSheetHtml, docLang, DOC_LANGS, type DocLang, type InvoiceDoc, type LabDoc } from "./documents";
+export { validateOrderDraft, LENS_DESCRIPTION_MAX, MAX_AMOUNT_CENTS, ORDER_NOTES_MAX, type CleanDraft, type OrderDraft } from "./orderDraft";
 export { labelGeometry, labelSettings, labelsHtml, localLabelService, parseScan, setLabelPrinter, MAX_COPIES, MIN_DOTS_PER_MODULE, MIN_QR_MM, qrModuleCount, type LabelPrinter, type LabelSettings, type PrintResult, type ProductQr, type ScannedCode } from "./labelService";
 export { frameDetails, SOLD_WINDOW_DAYS, type FrameDetails } from "./frameDetails";
 export { accessoryDetails, type AccessoryDetails } from "./accessoryDetails";
@@ -34,3 +42,7 @@ export { checkUnsynced, syncState, type UnsyncedRow } from "./syncStatus";
 export { validatePrescriptionForm, type CleanPrescription, type PrescriptionForm } from "./prescriptionValidation";
 export type { LensEntry, PrescriptionEntry, SaveLensResult, SavePrescriptionResult } from "./shopServices";
 export { validateLensForm, toCode, type CleanLens, type LensForm } from "./lensValidation";
+export {
+  matchLenses, toMinusCylinder, toPlusCylinder, transposeAxis, strongestMeridian, lensCylinderSign, formatDiopters,
+  type BothEyesFit, type CylinderForm, type Eye, type EyeMatch, type Finding, type LensExclusion, type LensFit, type LensLike, type LensMatch, type MatchOptions, type PrescriptionInput,
+} from "./lensMatching";

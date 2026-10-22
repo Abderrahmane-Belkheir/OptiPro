@@ -15,12 +15,14 @@ export type UnsyncedRow =
   | { table: "accessories"; row: NonNullable<Awaited<ReturnType<typeof localAccessoryService.get>>> }
   | { table: "customers"; row: NonNullable<Awaited<ReturnType<typeof localCustomerService.get>>> }
   | { table: "product_images"; row: { id: string; synced: boolean; frameId: string | null; accessoryId: string | null } }
+  | { table: "shop_info"; row: { id: number; synced: boolean } }
   | { table: "pending_deletions"; row: { id: number; kind: string; targetId: string; attempts: number; lastError: string | null } }
   | { table: ShopTable; row: Record<string, unknown> };
 
 /** The shop-management tables, in the order they depend on each other (parents first). */
 const SHOP_TABLES = [
   ["lenses", "lens"],
+  ["suppliers", "supplier"],
   ["prescriptions", "prescription"],
   ["orders", "order"],
   ["order_items", "orderItem"],
@@ -68,6 +70,10 @@ export async function checkUnsynced(): Promise<UnsyncedRow | null> {
     const row = await db[delegate].findFirst({ where, orderBy: { createdAt: "asc" } });
     if (row) return found({ table, row });
   }
+
+  // The shop's own details, edited in the settings and not yet confirmed by the server (the licence row has no tenant column: it is this computer's one row).
+  const info = await sqlitePrisma.licenseExpiry.findFirst({ where: { synced: false }, select: { id: true, synced: true } });
+  if (info) return found({ table: "shop_info", row: info });
 
   syncState.synced = true;
   return null;

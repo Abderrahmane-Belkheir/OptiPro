@@ -45,7 +45,7 @@
   const money = (cents) => moneyFormat.format(cents / 100);
   const EYE = { right: "Right eye", left: "Left eye", both: "Both eyes" };
 
-  const state = { id: null, load: "loading", order: null, error: "", busy: false, message: "", token: 0 };
+  const state = { id: null, load: "loading", order: null, error: "", busy: false, message: "", token: 0, pending: null };
   let root = null;
 
   async function load() {
@@ -81,13 +81,32 @@
 
   // ---- Pieces --------------------------------------------------------------------------------
 
+  /** Picking a status only chooses it; the order changes when Confirm is pressed (Cancel puts the choice back). */
   function statusSwitch(order) {
+    const shown = state.pending ?? order.status;
+    const confirm = () => {
+      const target = state.pending;
+      state.pending = null;
+      if (target) act(() => api.setStatus(order.id, target));
+    };
     return h(
       "div",
-      { class: "chips", role: "group", "aria-label": "Order status", "data-status-switch": "" },
-      STATUSES.map(([key, label]) =>
-        h("button", { class: "chip", type: "button", "data-set-status": key, "aria-pressed": String(order.status === key), disabled: state.busy, onclick: () => order.status !== key && act(() => api.setStatus(order.id, key)) }, label),
+      { class: "od-status" },
+      h(
+        "div",
+        { class: "chips", role: "group", "aria-label": "Order status", "data-status-switch": "" },
+        STATUSES.map(([key, label]) =>
+          h("button", { class: "chip", type: "button", "data-set-status": key, "aria-pressed": String(shown === key), disabled: state.busy, onclick: () => { state.pending = key === order.status ? null : key; render(); } }, label),
+        ),
       ),
+      state.pending
+        ? h(
+            "div",
+            { class: "od-status__confirm", "data-status-confirm": "" },
+            h("button", { class: "btn btn--primary btn--sm", type: "button", "data-confirm-status": "", disabled: state.busy, onclick: confirm }, "Confirm"),
+            h("button", { class: "btn btn--secondary btn--sm", type: "button", "data-cancel-status": "", disabled: state.busy, onclick: () => { state.pending = null; render(); } }, "Cancel"),
+          )
+        : null,
     );
   }
 
@@ -184,6 +203,7 @@
       state.message ? h("p", { class: "od-error", role: "alert", "data-message": "" }, state.message) : null,
       h("section", { class: "od-section" }, h("h3", { class: "od-section__title" }, "Status"), statusSwitch(o)),
       o.canPay ? h("section", { class: "od-section" }, payForm(o)) : null,
+      h("section", { class: "od-section", "data-documents": "" }, h("h3", { class: "od-section__title" }, "Documents"), window.orderPrintBar(o.id, { lab: o.items.some((i) => i.kind === "lens") })),
       h("section", { class: "od-section" }, h("h3", { class: "od-section__title" }, "Payments"), h("div", { class: "table-card" }, paymentsTable(o))),
       h("section", { class: "od-section" }, h("h3", { class: "od-section__title" }, "Items"), h("div", { class: "table-card" }, itemsTable(o)), o.discountCents > 0 ? h("p", { class: "od-hint", "data-discount": "" }, `Discount: ${money(o.discountCents)}`) : null),
       o.notes ? h("section", { class: "od-section" }, h("h3", { class: "od-section__title" }, "Notes"), h("p", { class: "od-notes", "data-notes": "" }, o.notes)) : null,
@@ -204,6 +224,7 @@
       }
       if (state.id !== id) {
         state.order = null;
+        state.pending = null;
         state.message = "";
       }
       state.id = id;
@@ -214,6 +235,7 @@
       state.token++;
       state.id = null;
       state.order = null;
+      state.pending = null;
       state.message = "";
     }
   }

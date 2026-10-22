@@ -72,6 +72,12 @@ const ADDED_COLUMNS: { table: string; column: string; definition: string }[] = [
   { table: "prescriptions", column: "pd_left", definition: "REAL" },
   { table: "prescriptions", column: "fitting_height_right", definition: "REAL" },
   { table: "prescriptions", column: "fitting_height_left", definition: "REAL" },
+  { table: "orders", column: "pd_right", definition: "REAL" },
+  { table: "orders", column: "pd_left", definition: "REAL" },
+  { table: "orders", column: "fitting_height_right", definition: "REAL" },
+  { table: "orders", column: "fitting_height_left", definition: "REAL" },
+  ...["shop_name", "instagram_url", "tiktok_url", "phone", "email", "address"].map((column) => ({ table: "license_expiry", column, definition: "TEXT" })),
+  { table: "license_expiry", column: "synced", definition: "BOOLEAN NOT NULL DEFAULT true" },
 ];
 
 function addMissingColumns(db: Database.Database): void {

@@ -35,6 +35,7 @@ const TABLES = {
   brands: "brand",
   customers: "customer",
   lenses: "lens",
+  suppliers: "supplier",
   frames: "frame",
   accessories: "accessory",
   prescriptions: "prescription",

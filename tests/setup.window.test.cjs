@@ -146,13 +146,14 @@ async function expectSetup(label, lines) {
       server.status = 200;
       server.body = { registered: true, tenant: {}, expiry: "2030-01-01" };
       await A.until("document.getElementById('setup-form')?.dataset.ready === 'true'");
-      await fill(A, { ...FORM, "server-url": server.url + "/" });
+      const FULL = { "shop-address": "12 Rue Didouche Mourad, Algiers", "shop-instagram": "https://instagram.com/maison", "shop-tiktok": "https://tiktok.com/@maison" };
+      await fill(A, { ...FORM, ...FULL, "server-url": server.url + "/" });
       await confirm(A);
       R.ck(await A.until("/Activated/.test(document.getElementById('setup-status').textContent)"), "the server accepts: the page says Activated");
       const sent = server.requests[0];
       R.ck(sent && sent.method === "POST" && sent.url === "/api/register", "the details are sent with POST /api/register (the trailing slash of the address is dropped)", JSON.stringify(sent && [sent.method, sent.url]));
       R.ck(sent?.authorization === "Bearer goodkey", "the tenant key is the Authorization header");
-      R.ck(JSON.stringify(sent?.body) === JSON.stringify({ name: "Maison Clair", phone: "+213 550 00 00 00", email: "hello@maison-clair.example.com" }), "the body holds the shop's details only (no key, no server address, no empty fields)", JSON.stringify(sent?.body));
+      R.ck(JSON.stringify(Object.entries(sent?.body ?? {}).sort()) === JSON.stringify(Object.entries({ name: "Maison Clair", phone: "+213 550 00 00 00", email: "hello@maison-clair.example.com", address: "12 Rue Didouche Mourad, Algiers", instagramUrl: "https://instagram.com/maison", tiktokUrl: "https://tiktok.com/@maison" }).sort()), "the body holds the shop's details only (no key, no server address, no empty fields)", JSON.stringify(sent?.body));
       let appeared = false;
       for (let i = 0; i < 60 && !appeared; i++) {
         appeared = (await pages(A.port)).some((u) => APP.test(u));
@@ -167,6 +168,9 @@ async function expectSetup(label, lines) {
       R.ck(fs.existsSync(box.db), "the local database is made now");
       const stored = JSON.parse(/EXPIRY (.*)/.exec(runScript(box, "console.log('EXPIRY ' + JSON.stringify((await p.licenseExpiry.findMany()).map((r) => [r.id, r.expiresAt.toISOString().slice(0, 10)])));"))?.[1] ?? "null");
       R.ck(JSON.stringify(stored) === JSON.stringify([[1, "2030-01-01"]]), "and the expiry day the server answered is saved in the local license_expiry table", JSON.stringify(stored));
+      const shop = JSON.parse(/SHOP (.*)/.exec(runScript(box, "const r = await p.licenseExpiry.findUnique({ where: { id: 1 } }); console.log('SHOP ' + JSON.stringify([r.shopName, r.phone, r.email, r.address, r.instagramUrl, r.tiktokUrl]));"))?.[1] ?? "null");
+      R.ck(JSON.stringify(shop) === JSON.stringify(["Maison Clair", "+213 550 00 00 00", "hello@maison-clair.example.com", "12 Rue Didouche Mourad, Algiers", "https://instagram.com/maison", "https://tiktok.com/@maison"]), "next to it, the shop's name, phone, email, address, Instagram and TikTok as the server accepted them", JSON.stringify(shop));
+      R.ck(!/maison|0ad|instagram|Didouche/i.test(config), "the settings file does not hold the shop's details (only the key, the address and the other settings)", config.replace(/\n/g, " | "));
     } catch (error) {
       R.ck(false, "activated: ERR", String(error.stack).slice(0, 400));
     } finally {

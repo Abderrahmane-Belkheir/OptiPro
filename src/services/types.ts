@@ -147,6 +147,31 @@ export interface Prescription extends Stamped {
   imageUrl: string | null;
 }
 
+export interface Supplier extends Stamped {
+  id: string;
+  name: string;
+  /** Comma-separated: lab, frames, lenses, accessories, other. */
+  kinds: string;
+  contactName: string | null;
+  phone: string | null;
+  email: string | null;
+  address: string | null;
+  notes: string | null;
+  isActive: boolean;
+}
+
+export interface NewSupplier {
+  id?: string;
+  name: string;
+  kinds?: string;
+  contactName?: string | null;
+  phone?: string | null;
+  email?: string | null;
+  address?: string | null;
+  notes?: string | null;
+  isActive?: boolean;
+}
+
 export interface Lens extends Stamped {
   id: string;
   name: string;
@@ -197,6 +222,11 @@ export interface Order extends Stamped {
   discountCents: number;
   totalCents: number;
   notes: string | null;
+  /** Measured with the frame on, mm. */
+  pdRight: number | null;
+  pdLeft: number | null;
+  fittingHeightRight: number | null;
+  fittingHeightLeft: number | null;
 }
 
 export interface OrderItem extends Stamped {
@@ -325,6 +355,10 @@ export interface NewOrder {
   discountCents?: number;
   totalCents?: number;
   notes?: string | null;
+  pdRight?: number | null;
+  pdLeft?: number | null;
+  fittingHeightRight?: number | null;
+  fittingHeightLeft?: number | null;
 }
 
 export interface NewOrderItem {

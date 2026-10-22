@@ -4,6 +4,7 @@ import { syncFlag } from "./sync";
 import { resetTableApiCircuit, serverContact } from "./tableApiClient";
 import { countPending, pushTable, SYNC_ORDER, type PushTableResult, type SyncTable } from "./syncPush";
 import { checkUnsynced } from "./syncStatus";
+import { localShopInfoService, type ShopInfoPushResult } from "./shopInfoService";
 
 /**
  * Pushes everything that is waiting, on a schedule: once at the very start, then every 10 minutes.
@@ -14,6 +15,9 @@ import { checkUnsynced } from "./syncStatus";
  *
  * First of all, the DELETIONS: a frame, accessory, photo or brand deleted on this computer whose deletion the server has not
  * been told yet (the outbox, pendingDeletions.ts) is sent to the server (the table API, action delete).
+ *
+ * The shop's own DETAILS (name, phone, address, social links) come next: when they were edited in the settings and the server has not confirmed them (the
+ * licence row's `synced` is false) they are sent again (POST /api/infos, shopInfoService.ts).
  *
  * After the tables, the PHOTOS: every product_images row that is not synced and whose frame or accessory is
  * synced is read from the app's images folder and uploaded to the server (pushPendingPhotos). They come after
@@ -51,6 +55,8 @@ export interface SyncRun {
   photos: PhotoPushResult;
   /** What happened to the deletions the server had not been told about yet (see pushPendingDeletions). */
   deletions: DeletionPushResult;
+  /** What happened to the shop's own details when they were waiting for the server (see localShopInfoService.pushPending); null when they were not. */
+  shopInfo: ShopInfoPushResult | null;
   errors: { table?: SyncTable; message: string }[];
 }
 
@@ -73,7 +79,7 @@ export function lastGoodSyncRun(): SyncRun | null {
 export async function pushAll(trigger: SyncRun["trigger"] = "manual"): Promise<SyncRun> {
   const startedAt = new Date().toISOString();
   const done = (outcome: SyncRun["outcome"], rest: Partial<SyncRun> = {}): SyncRun => ({
-    startedAt, finishedAt: new Date().toISOString(), trigger, outcome, tables: [], sent: 0, held: 0, photos: { uploaded: 0, failed: 0, remaining: 0, errors: [] }, deletions: { sent: 0, failed: 0, remaining: 0, errors: [] }, errors: [], ...rest,
+    startedAt, finishedAt: new Date().toISOString(), trigger, outcome, tables: [], sent: 0, held: 0, photos: { uploaded: 0, failed: 0, remaining: 0, errors: [] }, deletions: { sent: 0, failed: 0, remaining: 0, errors: [] }, shopInfo: null, errors: [], ...rest,
   });
 
   /** A pass that could not start: a missing config.properties is one thing, anything else means the remote database. */
@@ -90,7 +96,8 @@ export async function pushAll(trigger: SyncRun["trigger"] = "manual"): Promise<S
 
     const pending = await countPending();
     const tablesPending = Object.values(pending).some((count) => count > 0);
-    if (!tablesPending && (await countUploadablePhotos()) === 0 && (await countPendingDeletions()) === 0) {
+    const infoPending = await localShopInfoService.isPending();
+    if (!tablesPending && !infoPending && (await countUploadablePhotos()) === 0 && (await countPendingDeletions()) === 0) {
       await checkUnsynced().catch(() => undefined); // keeps syncState.synced accurate
       return remember(done("nothing-to-push"));
     }
@@ -102,6 +109,13 @@ export async function pushAll(trigger: SyncRun["trigger"] = "manual"): Promise<S
     // depends on the order: a deleted product's row is gone here, so nothing of it can be sent again.
     const deletions = await pushPendingDeletions();
     if (deletions.stoppedBecause) errors.push({ message: `deletions: stopped (${deletions.stoppedBecause})` });
+
+    // The shop's details: only when the settings edited them and the server has not confirmed yet.
+    let shopInfo: ShopInfoPushResult | null = null;
+    if (infoPending) {
+      shopInfo = await localShopInfoService.pushPending();
+      if (shopInfo.status === "failed") errors.push({ message: `shop information: not sent (${shopInfo.reason})` });
+    }
 
     const tables: PushTableResult[] = [];
     if (tablesPending) {
@@ -120,7 +134,7 @@ export async function pushAll(trigger: SyncRun["trigger"] = "manual"): Promise<S
     if (photos.stoppedBecause) errors.push({ message: `photos: stopped (${photos.stoppedBecause})` });
 
     await checkUnsynced().catch(() => undefined);
-    const run = done("pushed", { tables, photos, deletions, errors, sent: tables.reduce((n, t) => n + t.sent, 0), held: tables.reduce((n, t) => n + t.held, 0) });
+    const run = done("pushed", { tables, photos, deletions, shopInfo, errors, sent: tables.reduce((n, t) => n + t.sent, 0), held: tables.reduce((n, t) => n + t.held, 0) });
     if (run.sent || run.held || run.errors.length || photos.uploaded || photos.failed || deletions.sent || deletions.failed) {
       const parts = [`sent ${run.sent} row(s)`];
       if (run.held) parts.push(`${run.held} waiting for a parent`);

@@ -15,6 +15,9 @@
 .od-back:hover { opacity: 1; text-decoration: underline; }
 .od-section { display: flex; flex-direction: column; gap: 8px; margin-top: 20px; }
 .od-section__title { margin: 0; font-size: 15px; font-weight: 600; }
+/* The status choices and, once one is picked, Confirm and Cancel: all on one line (they wrap on a narrow window). */
+.od-status { display: flex; flex-wrap: wrap; align-items: center; gap: 12px; }
+.od-status__confirm { display: flex; align-items: center; gap: 8px; }
 .od-pay__row { display: flex; gap: 12px; align-items: flex-end; flex-wrap: wrap; }
 .od-field { display: flex; flex-direction: column; gap: 4px; }
 .od-field--grow { flex: 1; min-width: 180px; }

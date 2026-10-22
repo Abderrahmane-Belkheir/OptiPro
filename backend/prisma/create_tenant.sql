@@ -18,7 +18,11 @@
 --                    - SELECT: the role reads ONLY ITS OWN ROW (key = its key);
 --                    - UPDATE: the role may update ONLY ITS OWN ROW, and only while its expiry is still empty (the shop has never been registered:
 --                      this is what POST /api/register does, once). WITH CHECK keeps the key its own and lets the expiry be set only to a day no
---                      later than today + 14, so the role cannot give itself a longer licence, and cannot change anything after registering;
+--                      later than today + 14, so the role cannot give itself a longer licence;
+--                    - UPDATE (second policy): once registered, while its licence is running (expiry set and not past), the role may update ONLY ITS OWN
+--                      ROW: this is what POST /api/infos does (the shop's details, with the columns granted above). The key and the host are not in the
+--                      grant. A trigger (tenants_shop_login_guard, created by this file) stops a shop login from ever changing its expiry once it is set,
+--                      because policies are OR-ed and this one would otherwise let a shop extend its own licence;
 --   5. on every other public table that has a text tenant_key column: grants SELECT, INSERT, UPDATE and DELETE (and
 --      USAGE on the table's id sequence, if it has one) and creates a row-level-security policy so the role only
 --      sees and writes rows carrying its own key. DELETE is NOT granted on the tables whose rows must never be
@@ -31,6 +35,22 @@
 --   * The server address can't be known from inside Postgres, so it is passed in.
 --   * Shops that existed before this function have policies that apply to every login: run
 --     limit_existing_policies.sql once, before adding a second shop.
+
+-- A shop login can not change its expiry once the shop is registered (see step 4 above and shop_infos_update.sql). Safe to run again; it is per table, not per shop.
+CREATE OR REPLACE FUNCTION tenants_shop_login_guard() RETURNS trigger
+LANGUAGE plpgsql
+SET search_path = public, pg_temp
+AS $guard$
+BEGIN
+  IF session_user LIKE 'tenant\_%' AND OLD.expiry IS NOT NULL AND NEW.expiry IS DISTINCT FROM OLD.expiry THEN
+    RAISE EXCEPTION 'A shop cannot change its own expiry.' USING ERRCODE = '42501';
+  END IF;
+  RETURN NEW;
+END;
+$guard$;
+
+DROP TRIGGER IF EXISTS tenants_shop_login_guard ON tenants;
+CREATE TRIGGER tenants_shop_login_guard BEFORE UPDATE ON tenants FOR EACH ROW EXECUTE FUNCTION tenants_shop_login_guard();
 
 DROP FUNCTION IF EXISTS create_backend_role(text, text);
 DROP FUNCTION IF EXISTS create_tenant(text, text, text, text, text, text, text, text);
@@ -88,6 +108,11 @@ BEGIN
   EXECUTE format(
     'CREATE POLICY %I ON tenants FOR UPDATE TO %I USING (key = %L AND expiry IS NULL) WITH CHECK (key = %L AND expiry IS NOT NULL AND expiry::date <= (now() AT TIME ZONE ''UTC'')::date + 14)',
     'tenant_update_' || v_role, v_role, v_key, v_key
+  );
+  --      UPDATE (second policy, POST /api/infos): USING (key = its key AND expiry IS NOT NULL AND expiry::date >= today)  WITH CHECK (key = its key)
+  EXECUTE format(
+    'CREATE POLICY %I ON tenants FOR UPDATE TO %I USING (key = %L AND expiry IS NOT NULL AND expiry::date >= (now() AT TIME ZONE ''UTC'')::date) WITH CHECK (key = %L)',
+    'tenant_update_infos_' || v_role, v_role, v_key, v_key
   );
 
   -- 5. the shop's tables (every other public table with a text tenant_key column): the id sequence where there

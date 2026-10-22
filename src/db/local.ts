@@ -1,6 +1,6 @@
 import {
   localAccessoryService, localBrandService, localCategoryService, localCustomerService, localFrameService, localInvoiceItemService,
-  localInvoiceService, localLensService, localOrderItemService, localOrderService, localPaymentService, localPrescriptionService,
+  localInvoiceService, localLensService, localOrderItemService, localOrderService, localPaymentService, localPrescriptionService, localSupplierService,
 } from "../local";
 import type { LocalDatabase, TableApi, TableName, TableTypes } from "./types";
 
@@ -16,6 +16,7 @@ const tables = {
   customers: localCustomerService,
   prescriptions: localPrescriptionService,
   lenses: localLensService,
+  suppliers: localSupplierService,
   orders: localOrderService,
   order_items: localOrderItemService,
   payments: localPaymentService,

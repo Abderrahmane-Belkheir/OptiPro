@@ -11,6 +11,7 @@ import { createTableApiRouter } from './lib/tableApi.js';
 import { createRegisterRouter } from './lib/registerApi.js';
 import { createLicenseGate } from './lib/licenseGate.js';
 import { createExpiryRouter } from './lib/expiryApi.js';
+import { createInfosRouter } from './lib/infosApi.js';
 import { deleteProductImage, insertProductImage, productImageExists } from './lib/productImageStore.js';
 import { prisma } from './lib/prismaClient.js';
 import { resolveTenantKeyByHost, warnIfRlsDisabled, withTenant } from './lib/tenantContext.js';
@@ -90,6 +91,16 @@ app.use(
   '/api/register',
   createRegisterRouter({
     findUnregisteredTenant,
+    query: (text, params) => prisma.$queryRawUnsafe(text, ...params),
+  }),
+);
+
+// POST /api/infos (Authorization: Bearer <tenant key>, body: the shop's information): a shop whose licence is running updates the fields of its tenants row that
+// have a value (null and empty ones are ignored, nothing is cleared). Never the host, the key or the expiry. See lib/infosApi.js.
+app.use(
+  '/api/infos',
+  createInfosRouter({
+    findActiveTenant,
     query: (text, params) => prisma.$queryRawUnsafe(text, ...params),
   }),
 );

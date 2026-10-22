@@ -330,6 +330,66 @@ export const TABLE_COLUMNS = {
       }
     }
   },
+  "suppliers": {
+    "table": "suppliers",
+    "serialId": false,
+    "updatedAt": true,
+    "columns": {
+      "id": {
+        "column": "id",
+        "type": "text",
+        "kind": "id",
+        "required": true,
+        "immutable": true
+      },
+      "name": {
+        "column": "name",
+        "type": "text",
+        "required": true,
+        "max": 1000
+      },
+      "kinds": {
+        "column": "kinds",
+        "type": "text",
+        "max": 1000
+      },
+      "contactName": {
+        "column": "contact_name",
+        "type": "text",
+        "max": 1000
+      },
+      "phone": {
+        "column": "phone",
+        "type": "text",
+        "max": 1000
+      },
+      "email": {
+        "column": "email",
+        "type": "text",
+        "max": 1000
+      },
+      "address": {
+        "column": "address",
+        "type": "text",
+        "max": 500
+      },
+      "notes": {
+        "column": "notes",
+        "type": "text",
+        "max": 5000
+      },
+      "isActive": {
+        "column": "is_active",
+        "type": "bool"
+      },
+      "createdAt": {
+        "column": "created_at",
+        "type": "datetime",
+        "immutable": true
+      }
+    },
+    "parents": {}
+  },
   "lenses": {
     "table": "lenses",
     "serialId": false,
@@ -515,6 +575,22 @@ export const TABLE_COLUMNS = {
         "column": "notes",
         "type": "text",
         "max": 5000
+      },
+      "pdRight": {
+        "column": "pd_right",
+        "type": "float"
+      },
+      "pdLeft": {
+        "column": "pd_left",
+        "type": "float"
+      },
+      "fittingHeightRight": {
+        "column": "fitting_height_right",
+        "type": "float"
+      },
+      "fittingHeightLeft": {
+        "column": "fitting_height_left",
+        "type": "float"
       },
       "createdAt": {
         "column": "created_at",

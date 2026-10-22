@@ -26,7 +26,7 @@ export interface SetupInput {
 }
 
 export type SetupOutcome =
-  | { kind: "activated"; tenantKey: string; serverUrl: string; expiry: string }
+  | { kind: "activated"; tenantKey: string; serverUrl: string; expiry: string; shop: { name: string; phone?: string; email?: string; address?: string; instagramUrl?: string; tiktokUrl?: string } }
   | { kind: "invalid"; message: string; field?: keyof SetupInput };
 
 /** The same shape the servers accept for a tenant key (backend/src/lib/imageUpload.js SAFE_KEY). */
@@ -145,7 +145,7 @@ export async function activate(
   if (response.status === 200) {
     // A 200 that is not this endpoint's answer (no "registered", no expiry day like 2026-11-04) is not our server's.
     return answer?.registered === true && typeof answer.expiry === "string" && EXPIRY_DAY.test(answer.expiry)
-      ? { kind: "activated", tenantKey, serverUrl, expiry: answer.expiry }
+      ? { kind: "activated", tenantKey, serverUrl, expiry: answer.expiry, shop: { name: shop.name, phone: shop.phone, email: shop.email, address: shop.address, instagramUrl: shop.instagramUrl, tiktokUrl: shop.tiktokUrl } }
       : { kind: "invalid", ...FAILED };
   }
   if (response.status === 400 || response.status === 409 || response.status === 413) {

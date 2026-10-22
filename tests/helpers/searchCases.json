@@ -1,0 +1,229 @@
+{
+ "valid": [
+  {
+   "by": "code",
+   "input": "",
+   "query": ""
+  },
+  {
+   "by": "code",
+   "input": "   ",
+   "query": ""
+  },
+  {
+   "by": "code",
+   "input": "a",
+   "query": "a"
+  },
+  {
+   "by": "code",
+   "input": "ab",
+   "query": "ab"
+  },
+  {
+   "by": "code",
+   "input": "abc",
+   "query": "abc"
+  },
+  {
+   "by": "code",
+   "input": "abc-",
+   "query": "abc-"
+  },
+  {
+   "by": "code",
+   "input": "abc-1",
+   "query": "abc-1"
+  },
+  {
+   "by": "code",
+   "input": "abc-12",
+   "query": "abc-12"
+  },
+  {
+   "by": "code",
+   "input": "abc-123",
+   "query": "abc-123"
+  },
+  {
+   "by": "code",
+   "input": "ABC-123",
+   "query": "abc-123"
+  },
+  {
+   "by": "code",
+   "input": "abc123",
+   "query": "abc123"
+  },
+  {
+   "by": "code",
+   "input": " abc 123 ",
+   "query": "abc123"
+  },
+  {
+   "by": "code",
+   "input": "1",
+   "query": "1"
+  },
+  {
+   "by": "code",
+   "input": "456",
+   "query": "456"
+  },
+  {
+   "by": "model",
+   "input": "",
+   "query": ""
+  },
+  {
+   "by": "model",
+   "input": "aviator",
+   "query": "aviator"
+  },
+  {
+   "by": "model",
+   "input": "Ray   Ban",
+   "query": "Ray Ban"
+  },
+  {
+   "by": "model",
+   "input": "rb3025",
+   "query": "rb3025"
+  },
+  {
+   "by": "model",
+   "input": "o'neill",
+   "query": "o'neill"
+  },
+  {
+   "by": "model",
+   "input": "Ray-Ban",
+   "query": "Ray-Ban"
+  },
+  {
+   "by": "model",
+   "input": "نظارة",
+   "query": "نظارة"
+  },
+  {
+   "by": "model",
+   "input": "lunettes d'été",
+   "query": "lunettes d'été"
+  },
+  {
+   "by": "model",
+   "input": "10x15 (new)",
+   "query": "10x15 (new)"
+  },
+  {
+   "by": "model",
+   "input": "a & b",
+   "query": "a & b"
+  },
+  {
+   "by": "model",
+   "input": "x/y+z",
+   "query": "x/y+z"
+  },
+  {
+   "by": "model",
+   "input": "one two three four five six",
+   "query": "one two three four five six"
+  },
+  {
+   "by": "model",
+   "input": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+   "query": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+  }
+ ],
+ "invalid": [
+  {
+   "by": "code",
+   "input": "abcd"
+  },
+  {
+   "by": "code",
+   "input": "ab1"
+  },
+  {
+   "by": "code",
+   "input": "abc-1234"
+  },
+  {
+   "by": "code",
+   "input": "abc--1"
+  },
+  {
+   "by": "code",
+   "input": "a$c"
+  },
+  {
+   "by": "code",
+   "input": "12ab"
+  },
+  {
+   "by": "code",
+   "input": "abc-12a"
+  },
+  {
+   "by": "code",
+   "input": "abc_123"
+  },
+  {
+   "by": "code",
+   "input": "é"
+  },
+  {
+   "by": "code",
+   "input": "1234"
+  },
+  {
+   "by": "code",
+   "input": "-123"
+  },
+  {
+   "by": "code",
+   "input": "ab-123"
+  },
+  {
+   "by": "code",
+   "input": "aviator"
+  },
+  {
+   "by": "model",
+   "input": "50%"
+  },
+  {
+   "by": "model",
+   "input": "under_score"
+  },
+  {
+   "by": "model",
+   "input": "<script>"
+  },
+  {
+   "by": "model",
+   "input": "x;y"
+  },
+  {
+   "by": "model",
+   "input": "say \"hi\""
+  },
+  {
+   "by": "model",
+   "input": "a\u0000b"
+  },
+  {
+   "by": "model",
+   "input": "back\\slash"
+  },
+  {
+   "by": "model",
+   "input": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+  },
+  {
+   "by": "model",
+   "input": "one two three four five six seven"
+  }
+ ]
+}

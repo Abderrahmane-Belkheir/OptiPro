@@ -18,7 +18,7 @@ export const API_METHODS = {
   /** A customer's history: listForCustomer(customerId) newest first; create(form) / edit(id, form) validate first (a prescription an order uses cannot be edited or deleted). */
   prescriptions: ["list", "get", "listForCustomer", "latestForCustomer", "create", "edit", "delete"],
   /** The lens catalog: listWithUsage() every lens with the order lines that use it; create(form) / edit(id, form) validate first; setActive(id, bool) retires or restores one; delete(id) only for one no order line uses. */
-  lenses: ["list", "get", "listWithUsage", "create", "edit", "setActive", "delete"],
+  lenses: ["list", "get", "listWithUsage", "create", "edit", "setActive", "availableFor", "delete"],
   orders: ["list", "get", "insert", "insertMany", "update"],
   orderItems: ["list", "get", "insert", "insertMany", "update"],
   payments: ["list", "get", "insert", "insertMany", "update"],
@@ -32,6 +32,14 @@ export const API_METHODS = {
   sales: ["list"],
   paymentsView: ["list"],
   orderDetails: ["get", "setStatus", "pay"],
+  /** The New order form: place(draft) checks the draft, then saves the order, its lines and the deposit together; answers { status: "invalid", errors } or { status: "placed", order, ... }. */
+  orderPlacement: ["place"],
+  /** An order's printed papers: print(orderId, "invoice" | "lab", lang) opens the print dialog with the customer's invoice (issued on the first print, the same one after) or the lab sheet; issueInvoice(orderId) issues it without printing; html(orderId, kind, lang) is the page itself. */
+  documents: ["print", "issueInvoice", "html"],
+  /** The suppliers directory: list() by name (retired ones too); create(form) / edit(id, form) validate first and answer { status: "invalid", errors } or the saved supplier; setActive(id, bool) retires or restores one; delete(id) removes it here and on the server. */
+  suppliers: ["list", "get", "create", "edit", "setActive", "delete"],
+  /** The shop's own details (the Settings page): get() -> the saved details and whether the server has them; save(form) validates, saves only what differs from what is saved (an empty field means "leave it"), and sends it to the server; answers { status: "invalid", errors } | { status: "unchanged" } | { status: "saved", changed, sentToServer }; isPending() / pushPending() are what the sync pass uses. */
+  shopInfo: ["get", "save", "isPending", "pushPending"],
   /** What goes on a product's label: qr(kind, code) -> { url, svg }; settings() -> the label size and printer; print({ kind, code, copies }) prints them; parseScan(text) reads what a scanner typed. */
   labels: ["qr", "settings", "print", "parseScan"],
   /** Printed document numbers: next("invoice") -> "FAC-2026-0042". */

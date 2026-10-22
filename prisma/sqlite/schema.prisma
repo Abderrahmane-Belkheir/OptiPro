@@ -200,6 +200,7 @@ model Tenant {
 
   prescriptions   Prescription[]
   lenses          Lens[]
+  suppliers       Supplier[]
   orders          Order[]
   orderItems      OrderItem[]
   payments        Payment[]
@@ -258,6 +259,31 @@ model Prescription {
 
   @@index([customerId, prescribedAt])
   @@map("prescriptions")
+}
+
+/// Who the shop buys from: a lab, a frame or lens maker, an accessories seller. A directory for now: nothing points at a supplier yet.
+model Supplier {
+  id          String  @id @default(uuid())
+  name        String
+  /// What they supply: a comma-separated list of lab, frames, lenses, accessories, other (may be empty).
+  kinds       String  @default("")
+  contactName String? @map("contact_name")
+  phone       String?
+  email       String?
+  address     String?
+  notes       String?
+  /// False = retired: no longer used, but kept in the records.
+  isActive    Boolean @default(true) @map("is_active")
+
+  tenantKey String   @map("tenant_key")
+  tenant    Tenant   @relation(fields: [tenantKey], references: [key])
+  /// Whether this row has been sent to the backend. Local-only column.
+  synced    Boolean  @default(false)
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  @@index([tenantKey, name])
+  @@map("suppliers")
 }
 
 model Lens {
@@ -331,6 +357,12 @@ model Order {
   discountCents Int     @default(0) @map("discount_cents")
   totalCents    Int     @default(0) @map("total_cents")
   notes         String?
+
+  /// Measured on the customer with the chosen frame on, mm. They belong to the job, not to the prescription (which is frozen once an order uses it).
+  pdRight            Float? @map("pd_right")
+  pdLeft             Float? @map("pd_left")
+  fittingHeightRight Float? @map("fitting_height_right")
+  fittingHeightLeft  Float? @map("fitting_height_left")
 
   items    OrderItem[]
   payments Payment[]
@@ -497,12 +529,22 @@ model PendingDeletion {
   @@map("pending_deletions")
 }
 
-/// When this installation's licence runs out. Local-only table: it is never sent anywhere (it has no tenant_key and no synced column, so the
-/// table API does not know it). At most one row, with id 1.
+/// When this installation's licence runs out, and the shop's own details. Local-only table: the table API does not know it (it has no tenant_key); only the
+/// details are sent, with POST /api/infos, and `synced` says whether the server has them. At most one row, with id 1.
 model LicenseExpiry {
   id        Int      @id @default(1)
   /// The day after which the licence is no longer valid.
   expiresAt DateTime @map("expires_at")
+  /// The shop's own details, as the person typed them when activating and the server accepted them. All optional.
+  shopName     String? @map("shop_name")
+  instagramUrl String? @map("instagram_url")
+  tiktokUrl    String? @map("tiktok_url")
+  phone        String?
+  email        String?
+  address      String?
+  /// Whether the server has these details. True when they came from the activation (the server accepted them) or when there are none; false from the moment
+  /// the shop edits them in the settings until the server confirms (POST /api/infos). The sync pass sends them again while this is false.
+  synced       Boolean @default(true)
   createdAt DateTime @default(now()) @map("created_at")
   updatedAt DateTime @updatedAt @map("updated_at")
 

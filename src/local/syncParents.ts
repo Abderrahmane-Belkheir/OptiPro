@@ -19,6 +19,7 @@ export const SYNCED_TABLES = {
   frames: { delegate: "frame", label: "frame" },
   accessories: { delegate: "accessory", label: "accessory" },
   lenses: { delegate: "lens", label: "lens" },
+  suppliers: { delegate: "supplier", label: "supplier" },
   prescriptions: { delegate: "prescription", label: "prescription" },
   orders: { delegate: "order", label: "order" },
   invoices: { delegate: "invoice", label: "invoice" },

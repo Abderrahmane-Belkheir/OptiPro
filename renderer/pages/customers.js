@@ -546,8 +546,10 @@
         window.mountCustomerSummary(body, customer);
         // The Orders tab opens first; the Prescriptions tab is the existing section, mounted the first time it opens.
         let rx = null;
+        let orders = null;
         const tabs = window.mountCustomerTabs(body, [
-          { id: "orders", label: "Orders", mount: (panel) => window.mountCustomerOrders(panel, customer, { showPrescriptions: (id) => showPrescription(id), onPrescriptionChosen: () => rx?.reload(), onNewOrder: () => window.openNewOrderForm(customer) }) },
+          // A placed order shows in the Orders tab at once, and the prescription it used is now "used" in the Prescriptions tab.
+          { id: "orders", label: "Orders", mount: (panel) => (orders = window.mountCustomerOrders(panel, customer, { showPrescriptions: (id) => showPrescription(id), onPrescriptionChosen: () => rx?.reload(), onNewOrder: () => window.openNewOrderForm(customer, { onPlaced: () => { orders?.reload(); rx?.reload(); } }) })) },
           { id: "prescriptions", label: "Prescriptions", mount: (panel) => (rx = window.mountPrescriptions(panel, customer)) },
         ]);
         const showPrescription = (id) => {

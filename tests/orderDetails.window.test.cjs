@@ -92,20 +92,34 @@ const text = (sel) => A.val(`document.querySelector(${JSON.stringify(sel)})?.tex
     R.ck(payments.rows.filter((r) => r.orderId === "o1").length === 4, "the payments also show on the Payments page");
 
     R.section("status");
+    await A.val("document.querySelector('[data-set-status=ready]').click()");
+    R.ck(await A.val("document.querySelector('[data-set-status=ready]').getAttribute('aria-pressed') === 'true' && document.querySelector('[data-order-page] [data-status]').dataset.status === 'confirmed' && !!document.querySelector('[data-confirm-status]')"), "choosing a status does not change the order: Confirm and Cancel appear");
+    R.ck(await A.val("(() => { const row = document.querySelector('[data-status-switch]').getBoundingClientRect(); const ok = document.querySelector('[data-confirm-status]').getBoundingClientRect(); return Math.abs((row.top + row.bottom) / 2 - (ok.top + ok.bottom) / 2) < 20 && ok.left >= row.right - 2; })()"), "on the same line as the options, after them");
+    R.ck(await A.val("!document.querySelector('.od-section [data-status-change]') && !/\\?/.test(document.querySelector('[data-status-confirm]').textContent)"), "with no question");
+    R.ck((await svc("window.electronAPI.orderDetails.get('o1')")).status === "confirmed", "nothing was saved yet");
+    await A.val("document.querySelector('[data-cancel-status]').click()");
+    R.ck(await A.val("!document.querySelector('[data-status-confirm]') && document.querySelector('[data-set-status=confirmed]').getAttribute('aria-pressed') === 'true'"), "Cancel puts the choice back");
+    await A.val("document.querySelector('[data-set-status=ready]').click()");
+    await A.val("document.querySelector('[data-set-status=confirmed]').click()");
+    R.ck(await A.val("!document.querySelector('[data-status-confirm]')"), "choosing the current status again asks for nothing");
     await A.val("document.querySelector('[data-set-status=at_lab]').click()");
+    await A.val("document.querySelector('[data-confirm-status]').click()"); // choosing is not enough: Confirm applies it
     await A.until("document.querySelector('[data-order-page] [data-status]').dataset.status === 'at_lab'");
     R.ck(await A.val("document.querySelector('[data-set-status=at_lab]').getAttribute('aria-pressed') === 'true' && document.querySelector('[data-set-status=confirmed]').getAttribute('aria-pressed') === 'false'"), "switching to At the lab");
     await A.val("document.querySelector('[data-set-status=delivered]').click()");
+    await A.val("document.querySelector('[data-confirm-status]').click()"); // choosing is not enough: Confirm applies it
     await A.until("document.querySelector('[data-order-page] [data-status]').dataset.status === 'delivered'");
     R.ck(await A.val("/Delivered/.test(document.querySelector('[data-customer]').textContent) && !document.querySelector('[data-overdue]')"), "delivered shows the delivery day and is no longer overdue");
     const afterDelivered = await svc("window.electronAPI.orderDetails.get('o1')");
     R.ck(afterDelivered.deliveredAt !== null && afterDelivered.status === "delivered", "delivered stamps the delivery day");
     await A.val("document.querySelector('[data-set-status=ready]').click()");
+    await A.val("document.querySelector('[data-confirm-status]').click()"); // choosing is not enough: Confirm applies it
     await A.until("document.querySelector('[data-order-page] [data-status]').dataset.status === 'ready'");
     R.ck((await svc("window.electronAPI.orderDetails.get('o1')")).deliveredAt === null, "leaving delivered clears the delivery day");
 
     R.section("cancelled and paid orders");
     await A.val("document.querySelector('[data-set-status=cancelled]').click()");
+    await A.val("document.querySelector('[data-confirm-status]').click()"); // choosing is not enough: Confirm applies it
     await A.until("document.querySelector('[data-order-page] [data-status]').dataset.status === 'cancelled'");
     R.ck(await A.val("document.querySelector('[data-tile=left] .summary__value').textContent === '—'"), "a cancelled order shows nothing left");
     await open("o2");

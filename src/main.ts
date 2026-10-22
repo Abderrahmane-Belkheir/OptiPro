@@ -4,6 +4,7 @@ import path from "node:path";
 import { pathToFileURL } from "node:url";
 import { ConfigError, configProblem, getConfig, saveSettings } from "./config";
 import { electronLabelPrinter } from "./labelPrinter";
+import { electronDocumentPrinter } from "./documentPrinter";
 import { activate } from "./setup";
 import { contextMenuTemplate, editMenuTemplate } from "./editMenu";
 
@@ -17,6 +18,7 @@ const windowIcon = path.join(__dirname, "../build/icon.png");
 
 /** The expiry day the server answered when the shop registered, kept until the local database is open (the database is not opened before the settings are complete). */
 let pendingExpiry: string | null = null;
+let pendingShop: { name: string; phone?: string; email?: string; address?: string; instagramUrl?: string; tiktokUrl?: string } | null = null;
 
 /** The setup window while it is open: it is closed once the app's own window is there (so the app never has "no window" in between and quits). */
 let setupWindow: BrowserWindow | null = null;
@@ -123,6 +125,7 @@ ipcMain.handle("setup:confirm", async (event, details: unknown) => {
         }
         // The settings are complete now: start the app (its window replaces the setup window); it stores the expiry once the database is open.
         pendingExpiry = outcome.expiry;
+        pendingShop = outcome.shop; // the details the server accepted: kept next to the expiry day in the local licence table
         setTimeout(() => void start(), 600);
         return { kind: "activated" };
     }
@@ -151,7 +154,7 @@ async function start(): Promise<void> {
     console.info(`[startup] settings are complete (server: ${getConfig().serverUrl}): loading the app`);
     // Only now is the rest of the app loaded (this opens the local database).
     // (require, not import: this file's imports are resolved when it loads, and these must wait until here)
-    const { ensureProductCodes, seedCategories, setLabelPrinter, checkUnsynced, startSyncScheduler, stopSyncScheduler, sweepOrphanPhotoFiles, setUnauthorizedHandler, checkExpiryWithServer } = require("./local") as typeof import("./local/index");
+    const { ensureProductCodes, seedCategories, setLabelPrinter, setDocumentPrinter, checkUnsynced, startSyncScheduler, stopSyncScheduler, sweepOrphanPhotoFiles, setUnauthorizedHandler, checkExpiryWithServer } = require("./local") as typeof import("./local/index");
     // When the server turns the shop away (unknown key, licence ended), an old expiry day has been saved: the sync stops, the app's windows are replaced by
     // the page that says so (the customer knows to call), and the next start is blocked by the saved day.
     setUnauthorizedHandler(() => {
@@ -173,12 +176,13 @@ async function start(): Promise<void> {
         app.exit(1);
         return;
     }
-    // A shop that has just registered: its licence's expiry day (today + 14 days, from the server) goes into the local database.
+    // A shop that has just registered: its licence's expiry day (today + 14 days, from the server) and the details it registered with go into the local database.
     if (pendingExpiry !== null) {
         try {
             const { localLicenseService } = require("./local") as typeof import("./local/index");
-            await localLicenseService.setExpiry(pendingExpiry);
+            await localLicenseService.setExpiry(pendingExpiry, pendingShop ?? undefined);
             pendingExpiry = null;
+            pendingShop = null;
         } catch (err) {
             console.error("Could not store the licence's expiry date:", err);
         }
@@ -232,6 +236,7 @@ async function start(): Promise<void> {
         console.error("Could not check for unsynced rows:", err);
     }
     setLabelPrinter(electronLabelPrinter); // labels are printed with Electron's printing
+    setDocumentPrinter(electronDocumentPrinter); // and so are the invoice and the lab sheet
     registerIpcHandlers(isTrustedSender);
     console.info("[startup] ready: opening the main window");
     createWindow();

@@ -10,6 +10,7 @@ import { LocalDbError } from "./errors";
 import type { FieldErrors } from "./frameValidation";
 import { validatePrescriptionForm, type PrescriptionForm } from "./prescriptionValidation";
 import { validateLensForm, type LensForm } from "./lensValidation";
+import { matchLenses, type LensMatch, type MatchOptions, type PrescriptionInput } from "./lensMatching";
 import { createLocalTableService } from "./tableService";
 
 const prescriptionTable = createLocalTableService<Prescription, NewPrescription>({
@@ -150,6 +151,26 @@ export const localLensService = {
     if (checked.errors) return { status: "invalid", errors: checked.errors };
     const lens = await lensTable.update(id, checked.lens as unknown as Partial<NewLens>);
     return { status: "updated", lens, sentToServer: sent(lens) };
+  },
+
+  /**
+   * Which of the shop's lenses can be made for a prescription, for each eye and for both (see lensMatching.ts for the rules). `prescription` is a saved
+   * prescription's id, or a prescription object (a draft not saved yet works too: only the power fields are read). The retired lenses are left out unless
+   * `options.includeRetired` is true. Reads only; nothing is saved.
+   */
+  async availableFor(prescription: string | PrescriptionInput, options: MatchOptions = {}): Promise<LensMatch> {
+    const tenantKey = await currentTenantKey();
+    let rx: PrescriptionInput;
+    if (typeof prescription === "string") {
+      const row = await sqlitePrisma.prescription.findFirst({ where: { id: prescription, tenantKey } });
+      if (!row) throw new LocalDbError(`Available lenses: no prescription "${prescription}".`, "not-found");
+      rx = row;
+    } else if (prescription !== null && typeof prescription === "object" && !Array.isArray(prescription)) {
+      rx = prescription;
+    } else {
+      throw new LocalDbError("Available lenses: give a prescription's id or a prescription object.", "invalid-input");
+    }
+    return matchLenses(rx, await lensTable.list(), { includeRetired: options?.includeRetired === true });
   },
 
   /** Retires a lens (it is no longer offered, and nothing is lost) or brings it back. */

@@ -531,3 +531,39 @@
   margin: 0;
   font-weight: var(--weight-bold);
 }
+
+/* The product pickers of the New order form: how to search, the search box (full width, the icon clear of the text), a hint, the scrollable list. */
+.pick-search__box { width: 100%; }
+.pick-search__box .search__input { background: var(--color-surface); }
+.pick-modes { margin: 0; }
+.pick-hint { margin: 0; color: var(--color-text-muted); font-size: var(--text-sm); }
+.pick-hint[hidden] { display: none; }
+.pick-results[hidden] { display: none; }
+.pick-results { max-height: 260px; }
+.pick-results__more { margin: 0; padding: var(--space-2) var(--space-4); color: var(--color-text-muted); font-size: var(--text-xs); border-top: 1px solid var(--color-border); position: sticky; bottom: 0; background: var(--color-surface); }
+.pick-hint--invalid { color: var(--color-danger); }
+
+/* The lens picker: the same list as the frames, a "Fits / May not fit" tag on each lens, and a written description instead of the list. */
+.pick[hidden], .lens-picker .field[hidden] { display: none; }
+.lens-picker { display: flex; flex-direction: column; gap: var(--space-3); }
+.pick-result__fit { color: var(--color-success, var(--color-text-muted)); font-size: var(--text-xs); font-weight: var(--weight-semibold); }
+.pick-result__fit--no, .pick-result__sub--no { color: var(--color-danger); }
+.lens-description { width: 100%; resize: vertical; }
+
+/* Printing an order's papers: two buttons and a line saying what happened. */
+.order-print { display: flex; flex-direction: column; gap: var(--space-2); }
+.order-print__buttons { display: flex; flex-wrap: wrap; gap: var(--space-2); }
+.order-print__status { margin: 0; min-height: 1.2em; }
+.order-print__status--error { color: var(--color-danger); }
+
+/* Measurements, promised day and notes sit two to a row; one to a row on a narrow window. */
+.order-form__grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: var(--space-3) var(--space-4); }
+@media (max-width: 560px) { .order-form__grid { grid-template-columns: minmax(0, 1fr); } }
+.order-notes { width: 100%; resize: vertical; }
+.order-form__problems { margin-top: var(--space-4); padding: var(--space-3) var(--space-4); border: 1px solid var(--color-danger); border-radius: var(--radius-md); color: var(--color-danger); font-size: var(--text-sm); }
+.order-form__problems[hidden] { display: none; }
+.order-form__problems-lead { margin: 0 0 var(--space-1); font-weight: var(--weight-semibold); }
+.order-form__problems-list { margin: 0; padding-inline-start: var(--space-5); }
+.input[aria-invalid="true"] { border-color: var(--color-danger); }
+.lens-description__count { margin: 0; text-align: end; }
+.search__input[aria-invalid="true"] { border-color: var(--color-danger); }

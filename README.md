@@ -56,7 +56,7 @@ Why both exist: the Express backend came first and is the easiest to read and de
 - **Three languages** (English, French, Arabic, right to left), chosen from the profile menu.
 - **Offline first + sync**: everything is saved on the PC first and sent to the server when it can be reached.
 
-Not built yet: placing an order (the *New order* form is UI only), invoices and receipts, suppliers, reports, settings, login and roles, backups, licence/activation, data import.
+Not built yet: reports, settings, login and roles, backups, data import, purchases and what the shop owes its suppliers (the *Suppliers* page is a directory for now).
 
 ## How the data flows
 

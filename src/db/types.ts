@@ -1,6 +1,6 @@
 import type {
   Accessory, Brand, Category, Customer, Frame, Invoice, InvoiceItem, Lens, NewAccessory, NewBrand, NewCustomer, NewFrame,
-  NewInvoice, NewInvoiceItem, NewLens, NewOrder, NewOrderItem, NewPayment, NewPrescription, Order, OrderItem, Payment, Prescription,
+  NewInvoice, NewInvoiceItem, NewLens, NewOrder, NewOrderItem, NewPayment, NewPrescription, NewSupplier, Order, OrderItem, Payment, Prescription, Supplier,
 } from "../services/types";
 
 /** The database the app works with. */
@@ -14,6 +14,7 @@ export interface TableTypes {
   customers: { row: Customer; input: NewCustomer };
   prescriptions: { row: Prescription; input: NewPrescription };
   lenses: { row: Lens; input: NewLens };
+  suppliers: { row: Supplier; input: NewSupplier };
   orders: { row: Order; input: NewOrder };
   order_items: { row: OrderItem; input: NewOrderItem };
   payments: { row: Payment; input: NewPayment };
@@ -24,7 +25,7 @@ export interface TableTypes {
 export type TableName = keyof TableTypes;
 
 export const TABLE_NAMES: TableName[] = [
-  "brands", "frames", "accessories", "customers", "prescriptions", "lenses", "orders", "order_items", "payments", "invoices", "invoice_items",
+  "brands", "frames", "accessories", "customers", "prescriptions", "lenses", "suppliers", "orders", "order_items", "payments", "invoices", "invoice_items",
 ];
 
 /**

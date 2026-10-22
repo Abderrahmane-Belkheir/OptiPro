@@ -1,0 +1,26 @@
+/* The Suppliers page (pages/suppliers.js). It shares the list, the status pill, the tags and the check boxes of the Lenses page (styles/lenses.css). */
+
+.supplier-reach {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  font-size: var(--text-sm);
+  overflow-wrap: anywhere;
+}
+
+.supplier-reach [data-reach="phone"] {
+  font-variant-numeric: tabular-nums;
+}
+
+.supplier-reach [data-reach="email"],
+.supplier-reach [data-reach="address"] {
+  color: var(--color-text-secondary);
+}
+
+.supplier-notes {
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+  max-width: 36ch;
+}
