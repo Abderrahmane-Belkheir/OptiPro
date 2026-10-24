@@ -5,13 +5,17 @@
 //   POST /api/register          Authorization: Bearer <tenant key>          body: the shop's information
 //
 // In this order (the first two are done by each server before it calls this file):
-//   1. the key must have a valid format, exist in the tenants table and have NO expiry yet (the shop has never been registered)
+//   1. the key must have a valid format, exist in the tenants table and not be expired (its expiry is empty, or a day that has not passed)
 //                                                                                    -> 401 UNAUTHORIZED (the same answer for all of these:
-//                                                                                       a key that does not exist, one that is already registered, an expired one)
+//                                                                                       a key that does not exist, a malformed one, an expired one)
 //   2. the body is read (at most 16 KB, JSON)                                          -> 400 BODY_NOT_JSON, 413 BODY_TOO_LARGE
 //   3. the body is checked (below)                                                     -> 400 INVALID_BODY, UNKNOWN_FIELD, MISSING_FIELD, INVALID_FIELD
-//   4. the shop's row is updated with what was sent and its expiry is set to today + 14 days (UTC) -> 200 { registered, tenant, expiry }
-//      The update itself only touches a row whose expiry is still empty, so two requests at once cannot both register the same key.
+//   4. the shop's row is updated with what was sent                                    -> 200 { registered, tenant, expiry }
+//      The EXPIRY: when it is empty the shop is registering for the first time and gets today + 15 days (UTC); when it already has a day, that day is KEPT
+//      (registering again, or a shop whose expiry was set by hand, never changes it). One statement does both (COALESCE), so two requests at once cannot
+//      disagree: the second one finds the day the first one set and keeps it.
+//      A row the database refuses to update for a key that was just accepted (a policy that does not let the shop's login update its row) is a
+//      500 NOT_UPDATED, never a 401: the key is fine, and the app must not read it as a refusal of the licence.
 //
 // The body is a JSON object with the shop's details. `name` is required; the others are optional (null or "" clears them);
 // a field that is not sent is left as it is. Nothing else is accepted: in particular NOT the shop's `host` (its website address), which is set by hand
@@ -26,7 +30,7 @@
 export const MAX_REGISTER_BODY_BYTES = 16 * 1024;
 
 /** How many days a shop's licence lasts from the day it registers. */
-export const REGISTER_DAYS = 14;
+export const REGISTER_DAYS = 15;
 
 const EMAIL = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 const PHONE = /^\+?[\d\s().-]{3,40}$/;
@@ -86,14 +90,14 @@ export function validateRegisterBody(body) {
 }
 
 /**
- * The UPDATE for the shop's row: the columns that were sent, and `expiry` = today + 14 days, only while the expiry is still empty. Column names come from
- * the rules above, never from the body; the number of days is a constant of this file.
+ * The UPDATE for the shop's row: the columns that were sent, and `expiry` = the day it already has, or today + 15 days when it has none (COALESCE), only for a
+ * licence that is not expired. Column names come from the rules above, never from the body; the number of days is a constant of this file.
  */
 export function buildRegisterUpdate(tenantKey, values) {
   const columns = Object.keys(values);
   const sets = columns.map((column, i) => `${column} = $${i + 2}`);
   return {
-    text: `UPDATE tenants SET ${sets.join(', ')}, expiry = (now() AT TIME ZONE 'UTC')::date + ${REGISTER_DAYS} WHERE key = $1 AND expiry IS NULL RETURNING key, name, host, phone, email, address, instagram_url, tiktok_url, expiry`,
+    text: `UPDATE tenants SET ${sets.join(', ')}, expiry = COALESCE(expiry, (now() AT TIME ZONE 'UTC')::date + ${REGISTER_DAYS}) WHERE key = $1 AND (expiry IS NULL OR expiry::date >= (now() AT TIME ZONE 'UTC')::date) RETURNING key, name, host, phone, email, address, instagram_url, tiktok_url, expiry`,
     params: [tenantKey, ...columns.map((c) => values[c])],
   };
 }
@@ -121,7 +125,7 @@ export async function runRegister({ tenantKey, body, query }) {
     throw err;
   }
   const row = rows?.[0];
-  if (!row) return fail(401, 'UNAUTHORIZED', 'A valid tenant key is required: send it as "Authorization: Bearer <tenant key>".');
+  if (!row) return fail(500, 'NOT_UPDATED', "The shop's information could not be saved on the server. Nothing was changed; the same request can be sent again.", { retry: 'same-request' });
   return {
     status: 200,
     body: {

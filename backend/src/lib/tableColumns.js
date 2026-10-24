@@ -390,6 +390,126 @@ export const TABLE_COLUMNS = {
     },
     "parents": {}
   },
+  "supplier_orders": {
+    "table": "supplier_orders",
+    "serialId": false,
+    "updatedAt": true,
+    "columns": {
+      "id": {
+        "column": "id",
+        "type": "text",
+        "kind": "id",
+        "required": true,
+        "immutable": true
+      },
+      "supplierId": {
+        "column": "supplier_id",
+        "type": "text",
+        "required": true,
+        "kind": "id"
+      },
+      "orderedAt": {
+        "column": "ordered_at",
+        "type": "datetime"
+      },
+      "priceMode": {
+        "column": "price_mode",
+        "type": "text",
+        "max": 1000
+      },
+      "totalCents": {
+        "column": "total_cents",
+        "type": "int"
+      },
+      "status": {
+        "column": "status",
+        "type": "text",
+        "max": 1000
+      },
+      "notes": {
+        "column": "notes",
+        "type": "text",
+        "max": 5000
+      },
+      "createdAt": {
+        "column": "created_at",
+        "type": "datetime",
+        "immutable": true
+      }
+    },
+    "parents": {
+      "supplierId": {
+        "table": "suppliers",
+        "idType": "text",
+        "tenantScoped": true
+      }
+    }
+  },
+  "supplier_order_items": {
+    "table": "supplier_order_items",
+    "serialId": false,
+    "updatedAt": true,
+    "columns": {
+      "id": {
+        "column": "id",
+        "type": "text",
+        "kind": "id",
+        "required": true,
+        "immutable": true
+      },
+      "supplierOrderId": {
+        "column": "supplier_order_id",
+        "type": "text",
+        "required": true,
+        "kind": "id"
+      },
+      "frameId": {
+        "column": "frame_id",
+        "type": "text",
+        "kind": "id"
+      },
+      "accessoryId": {
+        "column": "accessory_id",
+        "type": "text",
+        "kind": "id"
+      },
+      "quantity": {
+        "column": "quantity",
+        "type": "int"
+      },
+      "unitCostCents": {
+        "column": "unit_cost_cents",
+        "type": "int",
+        "required": true
+      },
+      "used": {
+        "column": "used",
+        "type": "bool"
+      },
+      "createdAt": {
+        "column": "created_at",
+        "type": "datetime",
+        "immutable": true
+      }
+    },
+    "parents": {
+      "supplierOrderId": {
+        "table": "supplier_orders",
+        "idType": "text",
+        "tenantScoped": true
+      },
+      "frameId": {
+        "table": "frames",
+        "idType": "text",
+        "tenantScoped": true
+      },
+      "accessoryId": {
+        "table": "accessories",
+        "idType": "text",
+        "tenantScoped": true
+      }
+    }
+  },
   "lenses": {
     "table": "lenses",
     "serialId": false,
@@ -592,6 +712,10 @@ export const TABLE_COLUMNS = {
         "column": "fitting_height_left",
         "type": "float"
       },
+      "trackingCode": {
+        "column": "tracking_code",
+        "type": "int"
+      },
       "createdAt": {
         "column": "created_at",
         "type": "datetime",
@@ -674,6 +798,10 @@ export const TABLE_COLUMNS = {
         "column": "total_cents",
         "type": "int",
         "required": true
+      },
+      "unitCostCents": {
+        "column": "unit_cost_cents",
+        "type": "int"
       },
       "createdAt": {
         "column": "created_at",

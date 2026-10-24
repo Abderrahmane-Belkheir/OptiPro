@@ -10,6 +10,7 @@
 // the shop uploaded (product_images), which the website fetches with GET /api/images/<id>.
 
 import { sqlState } from './http.js';
+import { TRACK_SQL } from './trackCore.js';
 
 // ---- the tenant -------------------------------------------------------------------------------
 
@@ -40,11 +41,11 @@ export async function findActiveTenant(sql, key) {
 }
 
 /**
- * The tenant with this key that has never been registered (its `expiry` is still empty), or null: how POST /api/register checks a key. A key that
- * does not exist and a key that already has an expiry (registered before, running or expired) give the same answer (null).
+ * The tenant with this key whose licence is not expired (its `expiry` is empty, or a day that has not passed), or null: how POST /api/register checks a key.
+ * A key that does not exist and a key whose expiry is past give the same answer (null).
  */
-export async function findUnregisteredTenant(sql, key) {
-  const rows = await sql.query('SELECT key FROM tenants WHERE key = $1 AND expiry IS NULL', [key]);
+export async function findRegistrableTenant(sql, key) {
+  const rows = await sql.query("SELECT key FROM tenants WHERE key = $1 AND (expiry IS NULL OR expiry::date >= (now() AT TIME ZONE 'UTC')::date)", [key]);
   return rows[0] ?? null;
 }
 
@@ -66,6 +67,12 @@ export function toImageCode(stored) {
   return code || null;
 }
 const toImageCodes = (stored) => (Array.isArray(stored) ? stored : []).map(toImageCode).filter(Boolean);
+
+/** The order of the shop at this host with this tracking code, with its lines and the shop's contact (the row of TRACK_SQL), or null. ONE request to Neon. */
+export async function getTrackedOrder(sql, host, code) {
+  const [, rows] = await sql.transaction([tenantFromHost(sql, host), sql.query(TRACK_SQL, [code])]);
+  return rows[0] ?? null;
+}
 
 export async function getCatalog(sql, host) {
   const [, categories, brands] = await sql.transaction([

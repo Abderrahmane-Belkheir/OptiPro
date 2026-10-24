@@ -12,6 +12,8 @@ import { createRegisterRouter } from './lib/registerApi.js';
 import { createLicenseGate } from './lib/licenseGate.js';
 import { createExpiryRouter } from './lib/expiryApi.js';
 import { createInfosRouter } from './lib/infosApi.js';
+import { createTrackRouter } from './lib/trackApi.js';
+import { TRACK_SQL } from './lib/trackCore.js';
 import { deleteProductImage, insertProductImage, productImageExists } from './lib/productImageStore.js';
 import { prisma } from './lib/prismaClient.js';
 import { resolveTenantKeyByHost, warnIfRlsDisabled, withTenant } from './lib/tenantContext.js';
@@ -58,9 +60,12 @@ const findActiveTenant = async (key) => {
   return rows[0] ?? null;
 };
 
-// The tenant with this key that has never been registered (its `expiry` is still empty), or null. Used by POST /api/register.
-const findUnregisteredTenant = async (key) => {
-  const rows = await prisma.$queryRawUnsafe('SELECT key FROM tenants WHERE key = $1 AND expiry IS NULL', key);
+// The tenant with this key whose licence is not expired (its `expiry` is empty, or a day that has not passed), or null. Used by POST /api/register.
+const findRegistrableTenant = async (key) => {
+  const rows = await prisma.$queryRawUnsafe(
+    "SELECT key FROM tenants WHERE key = $1 AND (expiry IS NULL OR expiry::date >= (now() AT TIME ZONE 'UTC')::date)",
+    key,
+  );
   return rows[0] ?? null;
 };
 
@@ -86,11 +91,11 @@ app.use(
 );
 
 // POST /api/register (Authorization: Bearer <tenant key>, body: the shop's information): updates the shop's row of the tenants table and sets its
-// expiry to today + 14 days. The key must exist and its expiry must still be empty (a shop registers once), otherwise 401 UNAUTHORIZED. See lib/registerApi.js.
+// expiry to today + 15 days when it is empty, and KEEPS it when it is already set. The key must exist and not be expired, otherwise 401 UNAUTHORIZED. See lib/registerApi.js.
 app.use(
   '/api/register',
   createRegisterRouter({
-    findUnregisteredTenant,
+    findRegistrableTenant,
     query: (text, params) => prisma.$queryRawUnsafe(text, ...params),
   }),
 );
@@ -134,10 +139,24 @@ app.use(
 
 // The website's reads show nothing for a shop whose licence has ended (403 LICENSE_EXPIRED); a shop with no expiry set yet is shown. See lib/licenseGate.js.
 app.use(
-  ['/api/catalog', '/api/frames', '/api/accessories', '/api/infos'],
+  ['/api/catalog', '/api/frames', '/api/accessories', '/api/infos', '/api/orders'],
   createLicenseGate({
     isHostExpired: async (host) =>
       (await prisma.$queryRawUnsafe("SELECT 1 AS expired FROM tenants WHERE host = $1 AND expiry IS NOT NULL AND expiry::date < (now() AT TIME ZONE 'UTC')::date", host)).length > 0,
+  }),
+);
+
+// GET /api/orders/:tracking_id -> follow an order with its 6-digit tracking code (public; the shop is the request's host): its status and dates, its totals, its lines and the shop's
+// name and contact. Never the prescription, the measurements, the notes, the customer or what the lines cost the shop. See lib/trackApi.js.
+app.use(
+  '/api/orders',
+  createTrackRouter({
+    findTrackedOrder: async (host, code) => {
+      const tenantKey = await resolveTenantKeyByHost(host);
+      if (!tenantKey) return null;
+      const rows = await withTenant(tenantKey, (tx) => tx.$queryRawUnsafe(TRACK_SQL, code));
+      return rows[0] ?? null;
+    },
   }),
 );
 

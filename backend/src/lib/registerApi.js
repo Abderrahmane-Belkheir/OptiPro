@@ -6,16 +6,16 @@ import { MAX_REGISTER_BODY_BYTES, runRegister } from './registerCore.js';
  * POST /api/register: the shop sends its information (Authorization: Bearer <tenant key>) and the row of the tenants table is updated.
  * The same endpoint, with the same answers, as cloudflare/src/register.js; the rules are in registerCore.js.
  *
- *   1. the key: format, existence, and no expiry yet (findUnregisteredTenant) -> 401 UNAUTHORIZED, the same answer for all of them (429 after too many wrong keys)
+ *   1. the key: format, existence, and not expired (findRegistrableTenant) -> 401 UNAUTHORIZED, the same answer for all of them (429 after too many wrong keys)
  *   2. the body (at most 16 KB, JSON)                                  -> 400 BODY_NOT_JSON, 413 BODY_TOO_LARGE
- *   3. registerCore.js checks it, updates the row and sets the expiry to today + 14 days -> 200 { registered, tenant, expiry } or 400 / 409
+ *   3. registerCore.js checks it and updates the row: an empty expiry becomes today + 15 days, an expiry that is set is kept -> 200 { registered, tenant, expiry } or 400 / 500 NOT_UPDATED
  *
- * `findUnregisteredTenant(key)` resolves to { key } for a shop whose key exists and whose expiry is still empty, otherwise to null;
+ * `findRegistrableTenant(key)` resolves to { key } for a shop whose key exists and whose licence is not expired (an empty expiry, or a day that has not passed), otherwise to null;
  * `query(text, params)` runs one statement and resolves to its rows.
  */
-export function createRegisterRouter({ findUnregisteredTenant, query }) {
+export function createRegisterRouter({ findRegistrableTenant, query }) {
   const router = express.Router();
-  const authenticate = createTenantAuthenticator(findUnregisteredTenant);
+  const authenticate = createTenantAuthenticator(findRegistrableTenant);
 
   router.post('/', authenticate, express.json({ limit: MAX_REGISTER_BODY_BYTES, strict: false }), async (req, res, next) => {
     try {

@@ -10,8 +10,10 @@
 --   2. For every shop that already exists, a second UPDATE policy `tenant_update_infos_<role>`: the login may update ITS OWN row while its licence is
 --      running (expiry set and not past). The columns it may update are the ones already granted by create_tenant(): name, phone, email, address,
 --      instagram_url, tiktok_url (and expiry, which the trigger now protects). The key and the host are not in the grant, so they can never change.
+--   3. For every shop that already exists, the registration policy `tenant_update_<role>` allows an expiry up to today + 15 instead of today + 14, because
+--      POST /api/register now gives a new shop 15 days (an empty expiry becomes today + 15; an expiry that is already set is kept).
 --
--- New shops: create_tenant() makes this policy itself (and this trigger), so this file is only for the shops that existed before that change.
+-- New shops: create_tenant() makes these policies itself (and this trigger), so this file is only for the shops that existed before that change.
 -- The file can be run again at any time: it replaces what it made.
 
 -- 1. a shop login can not change its expiry once the shop is registered
@@ -46,5 +48,23 @@ EXECUTE format(
         );
 END IF;
 END LOOP;
+END;
+$$;
+
+-- 3. the registration policy of every shop that exists allows today + 15 (ALTER keeps the policy and changes only its check)
+DO $$
+DECLARE
+  t      record;
+  v_role text;
+BEGIN
+  FOR t IN SELECT key FROM tenants LOOP
+    v_role := 'tenant_' || replace(t.key, '-', '');
+    IF EXISTS (SELECT 1 FROM pg_policies WHERE schemaname = 'public' AND tablename = 'tenants' AND policyname = 'tenant_update_' || v_role) THEN
+      EXECUTE format(
+        'ALTER POLICY %I ON tenants WITH CHECK (key = %L AND expiry IS NOT NULL AND expiry::date <= (now() AT TIME ZONE ''UTC'')::date + 15)',
+        'tenant_update_' || v_role, t.key
+      );
+    END IF;
+  END LOOP;
 END;
 $$;

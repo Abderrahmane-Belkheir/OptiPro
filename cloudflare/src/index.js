@@ -13,6 +13,7 @@
 //   POST   /api/register                                  the shop sends its information; the tenants row is updated (Authorization: Bearer <tenant key>, which must exist and not be expired)
 //   POST   /api/infos                                     (same address) a registered shop sends its information again; the fields that have a value update the tenants row (Authorization: Bearer <tenant key>, whose licence must be running)
 //   GET    /api/expiry                                    the day the shop's licence ends: { expiry: "YYYY-MM-DD" } (Authorization: Bearer <tenant key>; 401 UNAUTHORIZED for an unknown, malformed, never registered or expired key)
+//   GET    /api/orders/:tracking_id                       follow an order with its 6-digit tracking code (public; the shop is the host): status, dates, totals, what is paid and what is left, lines, the shop's contact. Never the prescription.
 //   POST   /api/table/:name?action=insert|update|delete   the table API: writes rows (same); deleting a frame or an accessory (or a photo row) also removes its photos' files from R2
 //
 // Bindings: DATABASE_URL (secret, Neon connection string), IMAGES (R2 bucket). Settings (optional): LIST_LIMIT,
@@ -26,6 +27,7 @@ import { tableRoute } from './tableApi.js';
 import { registerRoute } from './register.js';
 import { expiryRoute } from './expiry.js';
 import { updateInfosRoute } from './infos.js';
+import { trackRoute } from './track.js';
 import { accessoriesRoute, accessoryRoute, catalogRoute, framesRoute, frameRoute, infosRoute } from './reads.js';
 
 const METHODS_FOR = (allowed) => ({ Allow: allowed.join(', ') });
@@ -91,6 +93,9 @@ export function createWorker({ makeSql = defaultSql } = {}) {
           case 'expiry':
             if (first !== undefined) break;
             return request.method === 'GET' ? expiryRoute(request, sql) : notAllowed('GET');
+          case 'orders':
+            if (first === undefined || second !== undefined) break;
+            return read ? trackRoute(request, sql, host, first) : notAllowed('GET', 'HEAD');
           case 'table':
             if (first === undefined || second !== undefined) break;
             return request.method === 'POST' ? tableRoute(request, env, sql, url, first) : notAllowed('POST');
