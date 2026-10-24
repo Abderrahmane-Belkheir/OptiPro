@@ -1,10 +1,16 @@
 import { ArrowRight, ChevronDown } from 'lucide-react';
+import type { ReactNode } from 'react';
 import { editorialMedia } from '../../data/editorialMedia';
 import { siteConfig } from '../../data/siteConfig';
 import { useTranslations } from '../../i18n/translations';
 import { Container } from '../common/Container';
 
-export function HeroSection() {
+interface HeroSectionProps {
+  /** The order search bar: one of the first things a visitor sees, so it sits in the hero. */
+  searchSlot?: ReactNode;
+}
+
+export function HeroSection({ searchSlot }: HeroSectionProps) {
   const t = useTranslations();
 
   return (
@@ -32,6 +38,7 @@ export function HeroSection() {
             {t.hero.ctaLabel}
             <ArrowRight size={16} className="transition-transform duration-300 group-hover:translate-x-1" />
           </a>
+          {searchSlot}
         </div>
       </Container>
 

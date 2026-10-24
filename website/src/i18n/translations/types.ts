@@ -61,6 +61,46 @@ export interface Translations {
     title: string;
     items: { title: string; description: string }[];
   };
+  tracking: {
+    eyebrow: string;
+    title: string;
+    hint: string;
+    inputLabel: string;
+    inputPlaceholder: string;
+    submit: string;
+    searching: string;
+    errors: {
+      invalid: string;
+      notFound: string;
+      unavailable: string;
+      error: string;
+      /** The visitor has used the searches allowed (here, or as the server counts them): when to try again. */
+      limit: (minutes: number) => string;
+    };
+    result: {
+      orderLabel: string;
+      searchAnother: string;
+      placedOn: string;
+      promisedFor: string;
+      deliveredOn: string;
+      statusLabel: string;
+      statuses: Record<'confirmed' | 'at_lab' | 'ready' | 'delivered' | 'cancelled', { label: string; description: string }>;
+      cancelledNotice: string;
+      itemsHeading: string;
+      columns: { item: string; quantity: string; unitPrice: string; total: string };
+      eyes: Record<'right' | 'left' | 'both', string>;
+      noItems: string;
+      summaryHeading: string;
+      subtotal: string;
+      discount: string;
+      total: string;
+      paid: string;
+      remaining: string;
+      paidInFull: string;
+      shopHeading: string;
+      call: string;
+    };
+  };
   footer: {
     exploreLabel: string;
     visitLabel: string;

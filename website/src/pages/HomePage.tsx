@@ -10,11 +10,14 @@ import { BenefitsSection } from '../components/home/BenefitsSection';
 import { BrandStorySection } from '../components/home/BrandStorySection';
 import { HeroSection } from '../components/home/HeroSection';
 import { LookbookSection } from '../components/home/LookbookSection';
+import { OrderResultSection } from '../components/tracking/OrderResultSection';
+import { OrderSearchBar } from '../components/tracking/OrderSearchBar';
 import { translateCategory } from '../i18n/categoryLabels';
 import { useLocale } from '../i18n/useLocale';
 import { useTranslations } from '../i18n/translations';
 import { useCatalog } from '../hooks/useCatalog';
 import { useFrames } from '../hooks/useFrames';
+import { useOrderTracking } from '../hooks/useOrderTracking';
 
 export function HomePage() {
   const { locale } = useLocale();
@@ -22,6 +25,7 @@ export function HomePage() {
   const { categories, brands, isLoading: catalogLoading, error: catalogError } = useCatalog();
   const [selectedCategory, setSelectedCategory] = useState<string | null>(null);
   const [selectedBrand, setSelectedBrand] = useState<string | null>(null);
+  const tracking = useOrderTracking();
 
   // Selection state stays name-based (for display/translation), but the frames API now filters
   // by id — resolved here from the catalog already loaded by useCatalog.
@@ -37,7 +41,9 @@ export function HomePage() {
 
   return (
     <>
-      <HeroSection />
+      {/* The order search is in the hero (one of the first things seen); the order it finds appears right under the hero. */}
+      <HeroSection searchSlot={<OrderSearchBar tracking={tracking} />} />
+      <OrderResultSection tracking={tracking} />
 
       <section id="frames" className="bg-ivory">
         <Container className="flex flex-col gap-10 py-20 sm:py-28">

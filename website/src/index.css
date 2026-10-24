@@ -110,6 +110,9 @@ body {
 .hero-stagger > *:nth-child(4) {
   animation-delay: 620ms;
 }
+.hero-stagger > *:nth-child(5) {
+  animation-delay: 760ms;
+}
 
 @media (prefers-reduced-motion: reduce) {
   .hero-kenburns {
