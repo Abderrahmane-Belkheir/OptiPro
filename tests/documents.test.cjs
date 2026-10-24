@@ -13,7 +13,7 @@ const out = runScript(
   await p.tenant.create({ data: { key: 't1', host: 'h1', name: 't1' } });
   const S = { tenantKey: 't1', synced: true };
   // the shop's details, as saved with the licence when the shop was activated
-  await p.licenseExpiry.create({ data: { id: 1, expiresAt: new Date('2099-01-01T00:00:00Z'), shopName: 'Optique Soleil', phone: '0550 12 34 56', address: '12 Rue Didouche Mourad, Alger' } });
+  await p.licenseExpiry.create({ data: { id: 1, shopName: 'Optique Soleil', phone: '0550 12 34 56', address: '12 Rue Didouche Mourad, Alger' } });
   await p.customer.create({ data: { id: 'c1', name: 'Amina <b>Benali</b>', phone: '0661 00 00 00', address: 'Cité 5 Juillet', ...S } });
   await p.prescription.create({ data: { id: 'rx1', customerId: 'c1', prescribedAt: new Date('2026-01-10T00:00:00Z'), prescriberName: 'Dr Saidi', rightSphere: -2.25, rightCylinder: -0.5, rightAxis: 90, rightAdd: 1.5, leftSphere: 1, notes: 'Wears them all day', ...S } });
   await p.brand.create({ data: { id: 'b1', name: 'Ray-Ban', ...S } });
@@ -137,6 +137,6 @@ R.section("printing");
 R.ck(/^sent:invoice:FAC-\d{4}-0001$/.test(r.print?.r1 ?? "") && /^cancelled:lab:CMD-\d{4}-0001$/.test(r.print?.r2 ?? ""), "the printer's answer comes back with the kind and the number", JSON.stringify(r.print));
 R.ck(/^invoice:FAC-\d{4}-0001:true:true\|lab:CMD-\d{4}-0001:true:true$/.test(r.print?.jobs ?? ""), "the printer got a whole A4 page for each", r.print?.jobs);
 R.ck(r.printerError === "out of paper", "a printer that fails is reported, not hidden", r.printerError);
-R.ck(r.api?.join() === "print,issueInvoice,html", "documents.print / issueInvoice / html are on the list of what the window may call");
+R.ck(r.api?.join() === "print,issueInvoice,html,labPdf,savePdf", "documents.print / issueInvoice / html / labPdf / savePdf are on the list of what the window may call");
 
 process.exit(R.done());

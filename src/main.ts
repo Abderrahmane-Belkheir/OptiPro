@@ -2,11 +2,17 @@ import { app, BrowserWindow, dialog, ipcMain, Menu } from "electron";
 import fs from "node:fs";
 import path from "node:path";
 import { pathToFileURL } from "node:url";
-import { ConfigError, configProblem, getConfig, saveSettings } from "./config";
+import { ConfigError, configProblem, deleteExpiredSettings, getConfig, readExpiredSettings, restoreExpiredSettings, saveSettings } from "./config";
+import { installResilientLookup } from "./lib/resilientDns";
 import { electronLabelPrinter } from "./labelPrinter";
-import { electronDocumentPrinter } from "./documentPrinter";
+import { electronDocumentPrinter, electronExternalOpener, electronPdfMaker, electronPdfSaver } from "./documentPrinter";
 import { activate } from "./setup";
+import { readSavedShop } from "./savedShop";
 import { contextMenuTemplate, editMenuTemplate } from "./editMenu";
+
+// Reaching the server: some of the addresses its name resolves to do not answer on some connections, so the addresses are completed (1.1.1.1) and a connection that
+// is not made goes on to the next one (see lib/resilientDns.ts).
+installResilientLookup();
 
 // The database, the sync and the IPC handlers are loaded only once the settings are known to be complete (see start below): until then
 // nothing of the app runs, not even the local database is opened.
@@ -16,9 +22,14 @@ const setupPage = path.join(__dirname, "../renderer/setup.html");
 const expiredPage = path.join(__dirname, "../renderer/expired.html");
 const windowIcon = path.join(__dirname, "../build/icon.png");
 
-/** The expiry day the server answered when the shop registered, kept until the local database is open (the database is not opened before the settings are complete). */
-let pendingExpiry: string | null = null;
+/** The shop's details the server accepted when the shop registered, kept until the local database is open (the database is not opened before the settings are complete). */
 let pendingShop: { name: string; phone?: string; email?: string; address?: string; instagramUrl?: string; tiktokUrl?: string } | null = null;
+
+/**
+ * The key and the server address kept in the renamed settings file, when the setup page is shown because the app was stopped: the page fills them in. `reason` is what the last
+ * check of that key found: the server refused it, or could not be reached.
+ */
+let setupPrefill: { tenantKey: string; serverUrl: string; reason: "refused" | "unreachable" } | null = null;
 
 /** The setup window while it is open: it is closed once the app's own window is there (so the app never has "no window" in between and quits). */
 let setupWindow: BrowserWindow | null = null;
@@ -93,10 +104,11 @@ function createSetupWindow(): void {
 }
 
 /**
- * The window shown instead of the app when the expiry day saved on this computer is before today: it says the licence ended and offers nothing else.
- * It has no preload and no access to anything; the sync, the IPC handlers and the app's own window are never started behind it.
+ * The window shown instead of the app when the server no longer accepts the shop's key (unknown, or its licence ended): it says the licence has expired and offers
+ * nothing else; the app ends when it is closed. The settings file has already been removed. It has no preload and no access to anything; the sync, the IPC handlers
+ * and the app's own window are never started behind it.
  */
-function createExpiredWindow(refused: boolean): void {
+function createExpiredWindow(): void {
     const win = new BrowserWindow({
         ...(fs.existsSync(windowIcon) ? { icon: windowIcon } : {}),
         width: 640,
@@ -107,25 +119,46 @@ function createExpiredWindow(refused: boolean): void {
         autoHideMenuBar: true,
         webPreferences: { contextIsolation: true, nodeIntegration: false, sandbox: true }
     });
-    // (no day: the server refused the key, the page says so instead of naming a day)
     enableClipboardMenu(win);
-    win.loadFile(expiredPage, refused ? { query: { refused: "1" } } : undefined);
+    win.loadFile(expiredPage);
+    win.on("closed", () => app.quit()); // (the app ends with this window)
     if (setupWindow && !setupWindow.isDestroyed()) setupWindow.close();
     setupWindow = null;
 }
 
+/**
+ * What the setup page needs to know before it shows its form: whether this computer already has the shop's details (the settings file is gone but the local
+ * database is still there). Then the page asks only for the tenant key and the server address.
+ */
+ipcMain.handle("setup:context", (event) => {
+    if (!isTrustedSetupSender(event)) return { savedShop: false, prefill: null };
+    return { savedShop: readSavedShop() !== null, prefill: setupPrefill };
+});
+
 ipcMain.handle("setup:confirm", async (event, details: unknown) => {
     if (!isTrustedSetupSender(event)) return { kind: "invalid", message: "Not allowed." };
-    const outcome = await activate(details);
+    let input = details;
+    // The short form (only the key and the server address were asked for): the shop's details are the ones the local database already holds. The key is
+    // not compared with anything here: the server decides, and a wrong key is refused like any other (the form stays as it is, with the server's words).
+    if (details !== null && typeof details === "object" && (details as { useSaved?: unknown }).useSaved === true) {
+        const { tenantKey, serverUrl } = details as { tenantKey?: unknown; serverUrl?: unknown };
+        const saved = readSavedShop();
+        // (the details were there when the page opened; if they are gone now, the page is told to ask for them after all)
+        if (saved === null) return { kind: "need-details", message: "This computer has no saved details of the shop. Enter the shop's details." };
+        input = { ...saved.shop, tenantKey, serverUrl };
+    }
+    const outcome = await activate(input);
     if (outcome.kind === "activated") {
         try {
             saveSettings({ tenantKey: outcome.tenantKey, serverUrl: outcome.serverUrl });
         } catch (err) {
             return { kind: "invalid", message: err instanceof ConfigError ? err.message : "The settings file could not be written." };
         }
-        // The settings are complete now: start the app (its window replaces the setup window); it stores the expiry once the database is open.
-        pendingExpiry = outcome.expiry;
-        pendingShop = outcome.shop; // the details the server accepted: kept next to the expiry day in the local licence table
+        // A new settings file is written: the renamed old one (from a refused key) is no longer needed.
+        deleteExpiredSettings();
+        setupPrefill = null;
+        // The settings are complete now: start the app (its window replaces the setup window); it stores the shop's details once the database is open.
+        pendingShop = outcome.shop; // the details the server accepted: kept in the local shop table
         setTimeout(() => void start(), 600);
         return { kind: "activated" };
     }
@@ -135,7 +168,20 @@ ipcMain.handle("setup:confirm", async (event, details: unknown) => {
 async function start(): Promise<void> {
     // First: the settings file (<app data>/OptiPro/config.properties) must exist and hold a tenant.key and a server.url. A new installation has no
     // such file: the app does NOT start, the setup page opens instead (nothing is built into the app, no file is made for the person).
-    const problem = configProblem();
+    let problem = configProblem();
+    if (problem !== null) {
+        // Was the app stopped because the server refused the key? Then the key and the address are in config.properties.expired. The server is asked about that key:
+        // if it accepts it the file gets its name back and the app starts; if it refuses it, or cannot be reached (no internet), the setup page opens with the key and the
+        // address filled in. (A settings file with its normal name that cannot be checked just lets the app start; this renamed one never does.)
+        const expired = readExpiredSettings();
+        if (expired !== null) {
+            const { checkKeyWithServer } = require("./local/licenseCheck") as typeof import("./local/licenseCheck");
+            const answer = await checkKeyWithServer(expired.serverUrl, expired.tenantKey);
+            console.info(`[config] the renamed settings file holds a key: the server says ${answer}`);
+            if (answer === "valid" && restoreExpiredSettings()) problem = configProblem();
+            else setupPrefill = { ...expired, reason: answer === "refused" ? "refused" : "unreachable" };
+        }
+    }
     if (problem !== null) {
         console.warn(`[config] the settings are not complete (${problem}): showing the setup page, the app does not start.`);
         if (!setupWindow) createSetupWindow();
@@ -154,14 +200,14 @@ async function start(): Promise<void> {
     console.info(`[startup] settings are complete (server: ${getConfig().serverUrl}): loading the app`);
     // Only now is the rest of the app loaded (this opens the local database).
     // (require, not import: this file's imports are resolved when it loads, and these must wait until here)
-    const { ensureProductCodes, seedCategories, setLabelPrinter, setDocumentPrinter, checkUnsynced, startSyncScheduler, stopSyncScheduler, sweepOrphanPhotoFiles, setUnauthorizedHandler, checkExpiryWithServer } = require("./local") as typeof import("./local/index");
-    // When the server turns the shop away (unknown key, licence ended), an old expiry day has been saved: the sync stops, the app's windows are replaced by
-    // the page that says so (the customer knows to call), and the next start is blocked by the saved day.
+    const { ensureProductCodes, seedCategories, setLabelPrinter, setDocumentPrinter, setPdfMaker, setPdfSaver, setExternalOpener, checkUnsynced, startSyncScheduler, stopSyncScheduler, sweepOrphanPhotoFiles, setUnauthorizedHandler, checkExpiryWithServer } = require("./local") as typeof import("./local/index");
+    // When the server turns the shop away (unknown key, licence ended) the settings file has been removed (licenseGuard.ts): the sync stops and the app's windows
+    // are replaced by the page that says the licence has expired; the app ends when it is closed, and the next start opens the setup page.
     setUnauthorizedHandler(() => {
-        console.warn("[license] the server refused the tenant key: the app stops.");
+        console.warn("[license] the server refused the tenant key: the settings file is removed and the app stops.");
         stopSyncScheduler();
         const open = BrowserWindow.getAllWindows();
-        createExpiredWindow(true);
+        createExpiredWindow();
         for (const win of open) if (!win.isDestroyed()) win.close();
     });
     const { currentTenantKey } = require("./local/context") as typeof import("./local/context");
@@ -176,38 +222,23 @@ async function start(): Promise<void> {
         app.exit(1);
         return;
     }
-    // A shop that has just registered: its licence's expiry day (today + 14 days, from the server) and the details it registered with go into the local database.
-    if (pendingExpiry !== null) {
-        try {
-            const { localLicenseService } = require("./local") as typeof import("./local/index");
-            await localLicenseService.setExpiry(pendingExpiry, pendingShop ?? undefined);
-            pendingExpiry = null;
+    // A shop that has just registered: the details it registered with (the server accepted them) go into the local database. Any shop: the row that holds them exists.
+    try {
+        const { localLicenseService } = require("./local") as typeof import("./local/index");
+        if (pendingShop !== null) {
+            await localLicenseService.saveShop(pendingShop);
             pendingShop = null;
-        } catch (err) {
-            console.error("Could not store the licence's expiry date:", err);
+        } else {
+            await localLicenseService.ensureRow();
         }
+    } catch (err) {
+        console.error("Could not store the shop's details:", err);
     }
-    // Ask the server for the expiry day (the settings are complete). A day it sends is saved locally; if it refuses the key, an old day is saved and the app
-    // closes (the handler above); with no network or no answer nothing changes and the day saved locally decides, just below.
+    // The FIRST request of the run asks the server whether it still accepts the key (the settings are complete). If it refuses (unknown key, licence ended) the settings
+    // file is removed and the app stops (the handler above); with no network or no answer the app starts as usual: nothing about the licence is kept on this computer.
     const online = await checkExpiryWithServer();
     console.info(`[startup] server check: ${online}`);
     if (online === "refused") return;
-    // Is the licence still valid? The expiry day saved on this computer (the last valid day) must not be before today (UTC, like the server's).
-    // Nothing saved (a copy that registered before expiry dates existed) is not blocked. A copy that is past its day gets the expired page and nothing else:
-    // no sync, no IPC, no app window.
-    try {
-        const { localLicenseService } = require("./local") as typeof import("./local/index");
-        const expiry = await localLicenseService.getExpiry();
-        const today = new Date().toISOString().slice(0, 10);
-        console.info(`[license] day saved locally: ${expiry ?? "none"}, today (UTC): ${today} -> ${expiry === null ? "not blocked (no day saved)" : expiry < today ? "expired" : "valid"}`);
-        if (expiry !== null && expiry < new Date().toISOString().slice(0, 10)) {
-            console.warn(`[license] expired on ${expiry}: the app does not start.`);
-            createExpiredWindow(false);
-            return;
-        }
-    } catch (err) {
-        console.error("Could not read the licence's expiry date:", err);
-    }
     // The categories are fixed in the code: at every start the table is made to hold them (the frames refer to it).
     try {
         await seedCategories();
@@ -237,6 +268,9 @@ async function start(): Promise<void> {
     }
     setLabelPrinter(electronLabelPrinter); // labels are printed with Electron's printing
     setDocumentPrinter(electronDocumentPrinter); // and so are the invoice and the lab sheet
+    setExternalOpener(electronExternalOpener); // messages to suppliers open in the browser
+    setPdfSaver(electronPdfSaver); // and the person can keep that PDF on this computer
+    setPdfMaker(electronPdfMaker); // the lab sheets of several orders go into one PDF file
     registerIpcHandlers(isTrustedSender);
     console.info("[startup] ready: opening the main window");
     createWindow();

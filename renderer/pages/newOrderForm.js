@@ -26,8 +26,8 @@
 
   const newOrderData = {
     /** by: "model" (name, reference, brand) or "code" (the code on the label). One more than is shown is asked for, to know whether there are more. */
-    searchFrames: (text, by) => window.electronAPI.frames.search(text, RESULTS_SHOWN + 1, by),
-    searchAccessories: (text, by) => window.electronAPI.accessories.search(text, RESULTS_SHOWN + 1, by),
+    searchFrames: (text, by) => window.electronAPI.frames.search(text, RESULTS_SHOWN + 1, by, { inStock: true }), // (only what is in stock can be sold)
+    searchAccessories: (text, by) => window.electronAPI.accessories.search(text, RESULTS_SHOWN + 1, by, { inStock: true }),
     prescriptionsFor: (customerId) => window.electronAPI.prescriptions.listForCustomer(customerId),
     /** What a scanner typed: { kind, code } for a product code or the address on a label's QR code, null for anything else. */
     parseScan: (text) => window.electronAPI.labels.parseScan(text),
@@ -103,6 +103,9 @@
       return `${value} ${code}`;
     }
   }
+
+  /** Centimes as the text of an amount box: 2000000 -> "20000", 18050 -> "180.50". */
+  const amountOf = (cents) => (cents % 100 === 0 ? String(cents / 100) : (cents / 100).toFixed(2));
 
   const diopter = (v) => `${v > 0 ? "+" : ""}${v.toFixed(2)}`;
   /** "R +2.00 / -1.25 × 90° · L ..." : a prescription in one line. */
@@ -341,7 +344,17 @@
     const count = h("p", { class: "field__help lens-description__count", id: "order-lens-description-count" }, `0 / ${DESCRIPTION_MAX}`);
     const written = h("div", { class: "field", "data-lens-text": "", hidden: true }, h("label", { class: "field__label", for: "order-lens-description" }, "Lens description"), text, count);
     const priceInput = h("input", { class: "input", type: "text", inputmode: "decimal", id: "order-lens-price", name: "lensPrice", placeholder: "0", autocomplete: "off" });
-    const priceField = h("div", { class: "field", "data-lens-price": "", hidden: true }, h("label", { class: "field__label", for: "order-lens-price" }, `Lens price (${CURRENCY})`), priceInput, h("p", { class: "field__help" }, "The price for the pair. A lens from your list starts at its price: you can change it."));
+    const costInput = h("input", { class: "input", type: "text", inputmode: "decimal", id: "order-lens-cost", name: "lensCost", placeholder: "0", autocomplete: "off" });
+    const priceField = h(
+      "div",
+      { class: "field", "data-lens-price": "", hidden: true },
+      h("label", { class: "field__label", for: "order-lens-price" }, `Lens price (${CURRENCY})`),
+      priceInput,
+      h("p", { class: "field__help" }, "The price for the pair. A lens from your list starts at its price: you can change it."),
+      h("label", { class: "field__label", for: "order-lens-cost" }, `Lens cost (${CURRENCY})`, h("span", { class: "field__hint" }, "Optional")),
+      costInput,
+      h("p", { class: "field__help" }, "What the pair costs you. It is kept with the order for the profit. A lens from your list starts at its cost, if it has one."),
+    );
     const el = h("div", { class: "lens-picker" }, h("label", { class: "lens-check" }, describe, "Not from my lenses: describe the lens instead"), catalogue, written, priceField);
 
     /** The price box is there once there is a lens to price: one chosen from the list, or described. */
@@ -427,6 +440,7 @@
     function choose(lens, fit) {
       state.chosen = { lens, fit };
       priceInput.value = amountText(lens.priceCents);
+      costInput.value = lens.costCents > 0 ? amountText(lens.costCents) : ""; // (a cost of 0 in the list is "not entered")
       showPrice();
       search.hidden = true;
       card.hidden = false;
@@ -441,6 +455,7 @@
     function unchoose() {
       state.chosen = null;
       priceInput.value = "";
+      costInput.value = "";
       showPrice();
       card.hidden = true;
       search.hidden = false;
@@ -499,6 +514,7 @@
     describe.addEventListener("change", () => {
       state.describing = describe.checked;
       priceInput.value = state.describing ? "" : state.chosen ? amountText(state.chosen.lens.priceCents) : ""; // each way of choosing starts from its own price
+      costInput.value = state.describing ? "" : state.chosen && state.chosen.lens.costCents > 0 ? amountText(state.chosen.lens.costCents) : "";
       showPrice();
       catalogue.hidden = state.describing;
       written.hidden = !state.describing;
@@ -511,6 +527,7 @@
       onChange();
     });
     priceInput.addEventListener("input", onChange);
+    costInput.addEventListener("input", onChange);
 
     run();
     return {
@@ -521,6 +538,8 @@
       description: () => (state.describing && text.value.trim() !== "" ? text.value.trim() : null),
       /** The price of the pair as typed ("" when there is no lens to price). */
       price: () => (priceField.hidden ? "" : priceInput.value.trim()),
+      /** The pair's cost as typed ("" when none, or when there is no lens). */
+      cost: () => (priceField.hidden ? "" : costInput.value.trim()),
       setPrescription,
     };
   }
@@ -535,6 +554,11 @@
 
     const deposit = h("input", { class: "input", type: "text", inputmode: "decimal", id: "order-deposit", name: "deposit", placeholder: "0", autocomplete: "off", "aria-describedby": "order-deposit-error" });
     const depositError = h("p", { class: "field__error", id: "order-deposit-error", hidden: true });
+
+    // The final price: what the customer pays for the whole order. It starts as the total of the items and follows it until something is typed; lowering it gives a
+    // discount. Emptying the box brings the total back.
+    const finalPrice = h("input", { class: "input", type: "text", inputmode: "decimal", id: "order-final-price", name: "finalPrice", placeholder: "0", autocomplete: "off", "aria-describedby": "order-final-price-error" });
+    const finalError = h("p", { class: "field__error", id: "order-final-price-error", hidden: true });
 
     const usePrescription = h("input", { type: "checkbox", id: "order-use-rx", name: "usePrescription" });
     const rxBox = h("div", { class: "rx-pick", "data-rx-list": "", hidden: true });
@@ -580,6 +604,16 @@
       const lensCents = lensText === "" ? null : centsOf(lensText);
       const lensKnown = lensCents !== null && !Number.isNaN(lensCents);
       const totalCents = itemsCents + (lensKnown ? lensCents : 0);
+      const anything = Boolean(f || a || lensKnown);
+      if (finalPrice.dataset.typed !== "1") finalPrice.value = anything ? amountOf(totalCents) : ""; // follows the items until it is edited
+      const fin = centsOf(finalPrice.value);
+      const finKnown = fin !== null && !Number.isNaN(fin);
+      const finalCents = finKnown ? fin : totalCents;
+      const finMessage = Number.isNaN(fin) ? "Enter an amount, like 20000 or 20000.50." : finKnown && fin > totalCents ? `The final price cannot be more than the items add up to (${price(totalCents / 100, null)}).` : "";
+      finalError.textContent = finMessage;
+      finalError.hidden = !finMessage;
+      if (finMessage) finalPrice.setAttribute("aria-invalid", "true");
+      else if (finalPrice.dataset.serverInvalid !== "1") finalPrice.removeAttribute("aria-invalid");
       const dep = depositCents();
       const depKnown = dep !== null && !Number.isNaN(dep);
       summary.replaceChildren();
@@ -587,9 +621,11 @@
       const money = (cents) => price(cents / 100, null);
       row("items", "Frame and accessory", f || a ? money(itemsCents) : "—");
       row("lens", "Lenses", lensKnown ? money(lensCents) : "—");
-      if (f || a || lensKnown) row("total", "Total", money(totalCents));
+      if (anything) row("total", "Items total", money(totalCents));
+      if (anything && finKnown && fin < totalCents) row("discount", "Discount", money(totalCents - fin));
+      if (anything) row("final", "Final price", money(finalCents));
       row("deposit", "Deposit", depKnown ? money(dep) : "—");
-      if ((f || a || lensKnown) && depKnown) row("left", "Left to pay", money(Math.max(0, totalCents - dep)));
+      if (anything && depKnown) row("left", "Left to pay", money(Math.max(0, finalCents - dep)));
       dialog.dataset.frame = f ? f.code ?? f.id : "";
       dialog.dataset.accessory = a ? a.code ?? a.id : "";
       dialog.dataset.prescription = chosenRx ?? "";
@@ -597,6 +633,11 @@
       dialog.dataset.lensDescription = lens.description() ?? "";
       placeButton.disabled = placing || !hasSomething();
     }
+
+    finalPrice.addEventListener("input", () => {
+      finalPrice.dataset.typed = finalPrice.value.trim() === "" ? "" : "1"; // emptied: the total of the items comes back
+      update();
+    });
 
     deposit.addEventListener("input", () => {
       const dep = depositCents();
@@ -658,7 +699,7 @@
     });
 
     /** Says what is wrong, in a box at the top of the form, and marks the boxes the server named. */
-    const INPUT_FOR = { deposit, lensPrice: () => document.getElementById("order-lens-price"), lensDescription: () => document.getElementById("order-lens-description"), promisedAt: promised, notes, ...measure };
+    const INPUT_FOR = { deposit, finalPrice, lensCost: () => document.getElementById("order-lens-cost"), lensPrice: () => document.getElementById("order-lens-price"), lensDescription: () => document.getElementById("order-lens-description"), promisedAt: promised, notes, ...measure };
     function showProblems(messages, fields = []) {
       problems.replaceChildren(h("p", { class: "order-form__problems-lead" }, "The order was not placed:"), h("ul", { class: "order-form__problems-list" }, [...new Set(messages)].map((message) => h("li", null, message))));
       problems.hidden = false;
@@ -693,6 +734,8 @@
         lensId: lensChosen?.id ?? null,
         lensDescription,
         lensPrice: lensChosen || lensDescription ? lens.price() : "",
+        finalPrice: finalPrice.dataset.typed === "1" ? finalPrice.value : "", // untouched = the total of the items
+        lensCost: lensChosen || lensDescription ? lens.cost() : "",
         deposit: deposit.value,
         pdRight: measure.pdRight.value,
         pdLeft: measure.pdLeft.value,
@@ -735,6 +778,7 @@
         section("Lenses", h("p", { class: "field__help" }, "Optional. The same lens for both eyes. Lenses are chosen for a prescription: choose one above, or describe the lens in words."), lens.el),
         section("Measurements", h("p", { class: "field__help" }, "Optional. Measured on the customer with the frame on. They start from the chosen prescription."), h("div", { class: "order-form__grid" }, MEASURES.map(([name, label]) => field(label, `order-${name}`, measure[name])))),
         section("Details", h("div", { class: "order-form__grid" }, field("Promised for", "order-promised", promised), field("Notes", "order-notes", notes))),
+        section("Final price", h("p", { class: "field__help" }, "What the customer pays for everything. It starts as the total of the items: lower it to give a discount."), h("div", { class: "field" }, h("label", { class: "field__label", for: "order-final-price" }, `Final price (${CURRENCY})`), finalPrice, finalError)),
         h("div", { class: "order-form__summary" }, summary),
         problems,
       ),

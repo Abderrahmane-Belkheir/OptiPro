@@ -277,7 +277,8 @@
         h(
           "div",
           { class: "order__header" },
-          h("div", { class: "order__title" }, h("span", { class: "order__number" }, order.number), h("span", { class: `status status--${order.status}` }, STATUS[order.status] ?? order.status)),
+          h("div", { class: "order__title" }, h("a", { class: "order__number order__link", href: `#orders/${encodeURIComponent(order.id)}`, "data-open-order": order.id }, order.number), h("span", { class: `status status--${order.status}` }, STATUS[order.status] ?? order.status)),
+          h("a", { class: "order__open", href: `#orders/${encodeURIComponent(order.id)}`, "data-order-link": order.id }, "Open order"),
           order.invoiceNumber ? h("a", { class: "order__invoice", href: "#", "data-invoice": order.invoiceNumber, onclick: (event) => event.preventDefault() }, icon("sales"), order.invoiceNumber) : null,
         ),
         h("p", { class: "order__dates" }, dates),

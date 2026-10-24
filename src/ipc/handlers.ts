@@ -1,7 +1,7 @@
 import { ipcMain, type IpcMainInvokeEvent } from "electron";
 import {
   ImageUploadError, LocalDbError, localAccessoryService, localBrandService, localCatalogService, localCategoryService, localCustomerService, localDashboardService,
-  localFrameService, localLabelService, localSalesService, localPaymentsService, localOrderDetailsService, localOrderPlacementService, localDocumentService, localSupplierService, localShopInfoService, localImageService, localInvoiceItemService, localInvoiceService, localLensService, localNumberService,
+  localFrameService, localLabelService, localSalesService, localReportsService, localPaymentsService, localOrderDetailsService, localOrderPlacementService, localSupplierOrdersService, localDocumentService, localContactService, localSupplierService, localShopInfoService, localImageService, localInvoiceItemService, localInvoiceService, localLensService, localNumberService,
   localOrderItemService, localOrderService, localPaymentService, localPrescriptionService,
 } from "../local";
 import { API_METHODS, channelFor, type ApiName, type IpcResult } from "./channels";
@@ -27,10 +27,13 @@ const services: Record<ApiName, Record<string, AnyFunction>> = {
   dashboard: localDashboardService,
   labels: localLabelService,
   sales: localSalesService,
+  reports: localReportsService,
   paymentsView: localPaymentsService,
   orderDetails: localOrderDetailsService,
   orderPlacement: localOrderPlacementService,
+  supplierOrders: localSupplierOrdersService,
   documents: localDocumentService,
+  contact: localContactService,
   suppliers: localSupplierService,
   shopInfo: localShopInfoService,
   numbers: localNumberService,

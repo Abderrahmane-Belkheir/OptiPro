@@ -75,6 +75,20 @@
   min-width: 0;
 }
 
+.frames-search {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  max-width: 640px;
+  margin-bottom: var(--space-4);
+}
+
+.results__more {
+  margin: var(--space-3) 0 0;
+  color: var(--color-text-muted);
+  font-size: var(--text-sm);
+}
+
 .chips {
   display: flex;
   flex-wrap: wrap;

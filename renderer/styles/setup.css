@@ -8,6 +8,7 @@
 .setup__intro { margin: 0; color: var(--color-text-muted); max-width: 56ch; }
 .setup__form { display: flex; flex-direction: column; gap: var(--space-5, 20px); }
 .setup__group { display: flex; flex-direction: column; gap: var(--space-4, 16px); margin: 0; padding: var(--space-5, 20px); border: 1px solid var(--color-border); border-radius: var(--radius-lg, 12px); background: var(--color-surface); }
+.setup__group[hidden] { display: none; }
 .setup__legend { padding: 0 6px; font-size: var(--text-xs); font-weight: var(--weight-bold); text-transform: uppercase; letter-spacing: 0.06em; color: var(--color-text-muted); }
 .setup__row { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: var(--space-4, 16px); }
 .setup__actions { display: flex; justify-content: flex-end; }

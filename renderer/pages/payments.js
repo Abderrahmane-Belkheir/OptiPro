@@ -183,7 +183,7 @@
   function row(p) {
     return h(
       "tr",
-      { "data-id": p.id },
+      { "data-id": p.id, "data-href": p.orderId && p.orderNumber ? `orders/${encodeURIComponent(p.orderId)}` : p.customerId ? `customers/${encodeURIComponent(p.customerId)}` : null },
       h("td", { "data-cell": "date" }, formatDay(p.paidAt)),
       h("td", { "data-cell": "customer" }, p.customerId ? h("a", { class: "sales-customer", href: `#customers/${encodeURIComponent(p.customerId)}` }, p.customerName) : h("span", { class: "cell-secondary" }, "—")),
       h("td", { "data-cell": "order" }, p.orderId && p.orderNumber ? h("a", { class: "sales-order-link", href: `#orders/${encodeURIComponent(p.orderId)}` }, p.orderNumber) : h("span", { class: "cell-secondary" }, "—")),

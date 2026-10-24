@@ -69,7 +69,7 @@ const out = runScript(
   out.getNoRow = await S.get();
 
   // the activation stored the details and the server has them
-  await L.localLicenseService.setExpiry('2030-01-01', { name: 'Maison Clair', phone: '0550 00 00 00', instagramUrl: 'https://instagram.com/maison' });
+  await L.localLicenseService.saveShop({ name: 'Maison Clair', phone: '0550 00 00 00', instagramUrl: 'https://instagram.com/maison' });
   out.start = await S.get();
   out.startPending = await S.isPending();
 
@@ -137,14 +137,14 @@ const out = runScript(
   out.fRequest = seen.at(-1).body;
   out.fSynced = (await row()).synced;
 
-  // 8. the server turns the shop away: the change is kept, the old day is saved, the app is told to close (once)
+  // 8. the server turns the shop away: the change is kept, the settings file is removed, the app is told to close (once)
   mode = '401';
   const g = await S.save({ phone: '0555 12 12 12' });
   out.g = { sent: g.sentToServer, syncedNow: g.info.onServer, phone: g.info.phone };
-  out.gDay = await L.localLicenseService.getExpiry();
+  out.gSettingsGone = !fs.existsSync(process.env.OPTIPRO_CONFIG_FILE);
   out.gClosed = refusedTimes;
   mode = 'ok';
-  await L.localLicenseService.setExpiry('2030-01-01');
+  serverIs(up); // (the settings file is written again for the rest of the run)
   await S.pushPending();
 
   // 9. sending turned off
@@ -212,7 +212,7 @@ R.section("refusals and races");
 R.ck(r.e?.sent === false && r.e?.syncedNow === false && r.e?.tiktok === "https://tiktok.com/@maison" && /e-mail address/.test(r.e?.reason ?? ""), "a value the server refuses stays saved, unsynced, with the server's reason", JSON.stringify(r.e));
 R.ck(r.e500?.status === "failed" && r.eWeird === "failed" && r.eRetry === "sent" && r.eRetrySynced === true, "a failing server, or an answer that is not the endpoint's, leaves it unsynced; a good answer later syncs it");
 R.ck(r.f?.sent === true && r.f?.syncedNow === false && r.f?.phone === "0770 99 99 99" && r.fRetry === "sent" && r.fSynced === true && r.fRequest?.phone === "0770 99 99 99", "an edit made while a request is on its way is not marked synced by it: the next pass sends the newer values", JSON.stringify(r.f));
-R.ck(r.g?.sent === false && r.g?.syncedNow === false && r.g?.phone === "0555 12 12 12" && r.gDay === "1970-01-01" && r.gClosed === 1, "when the server turns the shop away (401 UNAUTHORIZED) the change is kept, an old expiry day is saved and the app is told to close, once", JSON.stringify([r.g, r.gDay, r.gClosed]));
+R.ck(r.g?.sent === false && r.g?.syncedNow === false && r.g?.phone === "0555 12 12 12" && r.gSettingsGone === true && r.gClosed === 1, "when the server turns the shop away (401 UNAUTHORIZED) the change is kept, the settings file is removed and the app is told to close, once", JSON.stringify([r.g, r.gSettingsGone, r.gClosed]));
 R.ck(r.h?.sent === false && r.h?.syncedNow === false && /turned off/.test(r.h?.reason ?? "") && r.hSent === 0, "with sending turned off the change stays local and nothing is sent");
 R.ck(r.rowGone === null, "(and get is null again when the row is gone)");
 R.ck(r.methods === "POST /api/infos" && r.auth === "Bearer goodkey", "only POST /api/infos was called, always with the tenant key");

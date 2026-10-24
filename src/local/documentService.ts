@@ -1,7 +1,7 @@
 import { randomUUID } from "node:crypto";
 import { sqlitePrisma } from "../lib/sqliteClient";
 import { currentTenantKey } from "./context";
-import { docLang, invoiceHtml, labSheetHtml, type DocShop, type InvoiceDoc, type LabDoc, type LabEye } from "./documents";
+import { docLang, invoiceHtml, labBundleHtml, labSheetHtml, type DocShop, type InvoiceDoc, type LabDoc, type LabEye } from "./documents";
 import { LocalDbError } from "./errors";
 import { localLicenseService } from "./licenseService";
 import { localNumberService } from "./shopServices";
@@ -36,6 +36,53 @@ export type DocumentPrinter = (html: string, job: { kind: DocumentKind; number: 
 let printer: DocumentPrinter | null = null;
 export function setDocumentPrinter(fn: DocumentPrinter | null): void {
   printer = fn;
+}
+
+/** Writes a finished page as a PDF file and answers where it is. Plugged in by the app at start (Electron), like the printer. */
+export type PdfMaker = (html: string, name: string) => Promise<{ file: string }>;
+
+let pdfMaker: PdfMaker | null = null;
+export function setPdfMaker(fn: PdfMaker | null): void {
+  pdfMaker = fn;
+}
+
+/** Lets the person keep a PDF this app made: asks where, copies it there, answers where it went (or that they cancelled). Plugged in by the app at start. */
+export type PdfSaver = (file: string) => Promise<{ status: "saved" | "cancelled"; file?: string }>;
+
+let pdfSaver: PdfSaver | null = null;
+export function setPdfSaver(fn: PdfSaver | null): void {
+  pdfSaver = fn;
+}
+
+/** The PDF files this run of the app made: the only ones the window can ask to have saved elsewhere (it can not name any other file). */
+const madePdfs = new Map<string, { orderIds: string[]; numbers: string[]; lang: string }>();
+
+/** Whether this file is a PDF this run of the app made (the only kind the window may ask to have saved, shown or sent). */
+export function isMadePdf(file: string): boolean {
+  return madePdfs.has(file);
+}
+
+/** The orders a PDF this app made holds (their ids and numbers, in the order of its pages), and the language it is written in; null for any other file. */
+export function madePdfInfo(file: string): { orderIds: string[]; numbers: string[]; lang: string } | null {
+  return madePdfs.get(file) ?? null;
+}
+
+/** The lab sheet of ONE order as a PDF file of its own (the file the PDF maker writes; the caller moves it where it belongs). */
+export async function makeSheetPdf(orderId: string, lang: string): Promise<string> {
+  if (pdfMaker === null) throw new LocalDbError("Documents: no PDF maker is available in this run of the app.", "invalid-input");
+  const doc = await labDoc(orderId);
+  return (await pdfMaker(labSheetHtml(doc, docLang(lang)), "lab-sheet")).file;
+}
+
+/** The most lab sheets one PDF can hold. */
+export const MAX_LAB_PDF_ORDERS = 200;
+
+export interface LabPdf {
+  /** The PDF file that was written. */
+  file: string;
+  /** How many orders (lab sheets) are in it, and their numbers in the order of the pages. */
+  orders: number;
+  numbers: string[];
 }
 
 export interface IssuedInvoice {
@@ -163,6 +210,7 @@ export async function labDoc(orderId: string): Promise<LabDoc> {
   const frame = frameItem?.frameId ? await sqlitePrisma.frame.findFirst({ where: { id: frameItem.frameId, tenantKey } }) : null;
 
   return {
+    orderId: order.id,
     shop: await shopDetails(tenantKey),
     orderNumber: order.number,
     orderedAt: order.orderedAt.toISOString(),
@@ -188,6 +236,33 @@ export const localDocumentService = {
   async html(orderId: string, kind: DocumentKind, lang?: string): Promise<string> {
     if (kind !== "invoice" && kind !== "lab") throw new LocalDbError(`Documents: kind must be "invoice" or "lab".`, "invalid-input");
     return kind === "invoice" ? invoiceHtml(await invoiceDoc(orderId), docLang(lang)) : labSheetHtml(await labDoc(orderId), docLang(lang));
+  },
+
+  /**
+   * The lab sheets of these orders in ONE PDF file, one sheet per page, in the order given (a cancelled order or an order with no lens is refused,
+   * with the number of the order). Nothing is saved or sent: the file is only made.
+   */
+  async labPdf(orderIds: unknown, lang?: string): Promise<LabPdf> {
+    if (!Array.isArray(orderIds) || orderIds.length === 0 || orderIds.some((id) => typeof id !== "string" || !id)) {
+      throw new LocalDbError("Documents: give the ids of the orders.", "invalid-input");
+    }
+    const ids = [...new Set(orderIds as string[])];
+    if (ids.length > MAX_LAB_PDF_ORDERS) throw new LocalDbError(`Documents: at most ${MAX_LAB_PDF_ORDERS} orders in one PDF.`, "invalid-input");
+    if (pdfMaker === null) throw new LocalDbError("Documents: no PDF maker is available in this run of the app.", "invalid-input");
+    const docs: LabDoc[] = [];
+    for (const id of ids) docs.push(await labDoc(id));
+    const without = docs.find((d) => d.lenses.length === 0);
+    if (without) throw new LocalDbError(`Order ${without.orderNumber} has no lens: there is nothing to send to a lens supplier.`, "invalid-input");
+    const { file } = await pdfMaker(labBundleHtml(docs, docLang(lang)), "lab-orders");
+    madePdfs.set(file, { orderIds: docs.map((d) => d.orderId), numbers: docs.map((d) => d.orderNumber), lang: docLang(lang) });
+    return { file, orders: docs.length, numbers: docs.map((d) => d.orderNumber) };
+  },
+
+  /** Saves a lab PDF that labPdf made where the person chooses on this computer (a "save as" window). Any other file is refused. */
+  async savePdf(file: unknown): Promise<{ status: "saved" | "cancelled"; file?: string }> {
+    if (typeof file !== "string" || !madePdfs.has(file)) throw new LocalDbError("Documents: that is not a PDF this app made.", "invalid-input");
+    if (pdfSaver === null) throw new LocalDbError("Documents: saving a PDF is not available in this run of the app.", "invalid-input");
+    return pdfSaver(file);
   },
 
   /** Prints the invoice (the customer's copy) or the lab sheet of an order, in the language given. Answers what the printer did. */

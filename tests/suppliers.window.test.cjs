@@ -38,7 +38,7 @@ const open = async () => {
     R.section("the list");
     R.ck((await names()) === "Essilor Algérie|Optic Import", "this shop's active suppliers, by name (the retired one and the other shop's are not shown)", await names());
     R.ck(await A.val("document.querySelector('.toolbar__count').textContent === '2 suppliers · 1 retired hidden'"), "the count says what is hidden");
-    R.ck(await A.val("(() => { const tr = document.querySelector('tr[data-id=s1]'); const t = (c) => tr.querySelector('[data-cell=' + c + ']'); return t('contact-name').textContent === 'M. Haddad' && [...t('kinds').querySelectorAll('.lens-tag')].map((x) => x.textContent).join() === 'Lab,Lenses' && t('reach').textContent.includes('0550 12 34 56') && t('reach').textContent.includes('h@essilor.dz') && t('reach').textContent.includes('Zone industrielle') && t('notes').textContent === 'Delivers on Sundays'; })()"), "a row shows the contact person, what it supplies, how to reach it and the notes");
+    R.ck(await A.val("(() => { const tr = document.querySelector('tr[data-id=s1]'); const t = (c) => tr.querySelector('[data-cell=' + c + ']'); return t('contact-name').textContent === 'M. Haddad' && [...t('kinds').querySelectorAll('.lens-tag')].map((x) => x.textContent).join() === 'Lenses (lab)' && t('reach').textContent.includes('0550 12 34 56') && t('reach').textContent.includes('h@essilor.dz') && t('reach').textContent.includes('Zone industrielle') && t('notes').textContent === 'Delivers on Sundays'; })()"), "a row shows the contact person, what it supplies, how to reach it and the notes");
     R.ck(await A.val("document.title.startsWith('Suppliers') && document.querySelector('[data-page=suppliers]').getAttribute('aria-current') === 'page'"), "the Suppliers entry of the sidebar is the current page");
 
     R.section("search and filters");
@@ -51,8 +51,8 @@ const open = async () => {
     await setValue("[aria-label='Search suppliers']", "");
     await click("[data-kind-filter] [data-kind=frames]");
     R.ck((await names()) === "Optic Import", "the Frames filter keeps the suppliers of frames");
-    await click("[data-kind-filter] [data-kind=lab]");
-    R.ck((await names()) === "Essilor Algérie" && (await A.val("document.querySelector('[data-kind-filter] [data-kind=lab] .chip__count').textContent")) === "1", "the Lab filter keeps the labs (retired ones are not counted)");
+    await click("[data-kind-filter] [data-kind=lenses]");
+    R.ck((await names()) === "Essilor Algérie" && (await A.val("document.querySelector('[data-kind-filter] [data-kind=lenses] .chip__count').textContent")) === "1", "the Lenses (lab) filter keeps the suppliers of lenses and labs (retired ones are not counted)");
     await click("[data-filter=retired]");
     R.ck((await names()) === "Essilor Algérie|Old Lab" && (await A.val("document.querySelector('tr[data-id=s3]').classList.contains('lens-row--retired')")), "Show retired adds the retired lab, dimmed");
     await click("[data-filter=retired]");
@@ -88,7 +88,7 @@ const open = async () => {
     await click("tr[data-id=s2] .row-menu-button");
     await click(".popup [data-action=edit]");
     await A.until("!!document.querySelector('[data-supplier-form=s2]')");
-    R.ck(await A.val("document.getElementById('supplier-name').value === 'Optic Import' && document.getElementById('supplier-phone').value === '0661 00 00 00' && document.querySelector('[data-kind-box=frames]').checked && !document.querySelector('[data-kind-box=lab]').checked"), "the form opens with the supplier's details and kinds");
+    R.ck(await A.val("document.getElementById('supplier-name').value === 'Optic Import' && document.getElementById('supplier-phone').value === '0661 00 00 00' && document.querySelector('[data-kind-box=frames]').checked && !document.querySelector('[data-kind-box=lenses]').checked"), "the form opens with the supplier's details and kinds");
     await setValue("#supplier-name", "Optic Import DZ");
     await setValue("#supplier-contactName", "Mme Benali");
     await click("[data-supplier-form=s2] [data-action=save]");
@@ -133,7 +133,7 @@ const open = async () => {
   const B = await launchApp(box);
   try {
     await B.until("typeof window.i18n?.setLang === 'function' && typeof window.electronAPI?.suppliers?.create === 'function'");
-    await B.val("window.electronAPI.suppliers.create({ name: 'Essilor Algérie', kinds: ['lab'], phone: '0550 12 34 56' }).then(() => 1)");
+    await B.val("window.electronAPI.suppliers.create({ name: 'Essilor Algérie', kinds: ['lenses'], phone: '0550 12 34 56' }).then(() => 1)");
     for (const [code, title, add, dir] of [["fr", "Fournisseurs", "Ajouter un fournisseur", "ltr"], ["ar", "الموردين", "إضافة مورّد", "rtl"]]) {
       R.section(code);
       await B.val(`(() => { window.i18n.setLang(${JSON.stringify(code)}, { persist: false }); return 1; })()`);

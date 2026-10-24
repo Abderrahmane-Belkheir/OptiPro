@@ -59,7 +59,7 @@ export type CreateAccessoryResult =
       photosSaved: number;
       /** True when the server has the accessory (it is marked synced); false when it could not be sent yet. */
       sentToServer: boolean;
-      notSentBecause?: "push-failed" | "parents-not-synced";
+      notSentBecause?: "push-failed" | "parents-not-synced" | "still-sending";
       /** How many photos the server has now (0 when the accessory itself was not sent). */
       photosUploaded: number;
       steps: string[];

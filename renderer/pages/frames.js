@@ -56,6 +56,12 @@
     categoryId: null,
     brandId: null,
     brandQuery: "",
+    // The search box: what is typed, how (by "model" or by "code"), and the frames found. Found frames are narrowed by the chosen brand and category, if any.
+    searchText: "",
+    by: "model",
+    found: { status: "idle", frames: [], more: false, message: "" },
+    searchToken: 0,
+    searchTimer: 0,
     list: { status: "idle", frames: [], source: "", error: "" },
     cache: new Map(), // "brandId:categoryId" -> frames
     fetches: 0,
@@ -92,7 +98,35 @@
   }
 
   /** Called after every choice: shows the list of this category + brand, fetching it only if it is not loaded yet. */
+  const searchActive = () => state.searchText.trim() !== "";
+  const SEARCH_PLACEHOLDER = { model: "Search by model: name, reference or brand", code: "Search by code, like abc-123" };
+
+  /**
+   * Looks for the frames that match what is typed. The brand and the category that are CHOSEN narrow the search; the ones that are not chosen are left out, so
+   * without any choice the search covers all the frames. A text the service refuses (a code that is not like abc-123...) is said under the box, with nothing listed.
+   */
+  async function runSearch() {
+    const token = ++state.searchToken;
+    if (!searchActive()) {
+      state.found = { status: "idle", frames: [], more: false, message: "" };
+      return render();
+    }
+    state.found = { status: "loading", frames: [], more: false, message: "" };
+    render();
+    try {
+      const { frames, more } = await api.frames.searchWithPhotos(state.searchText, state.by, { brandId: state.brandId, categoryId: state.categoryId });
+      if (token !== state.searchToken) return;
+      state.found = { status: "ready", frames, more, message: "" };
+    } catch (error) {
+      if (token !== state.searchToken) return;
+      const refused = /^\[invalid-input\]/.test(String(error?.message ?? ""));
+      state.found = { status: refused ? "refused" : "error", frames: [], more: false, message: errorMessage(error).replace(/^Search:\s*/, "") };
+    }
+    render();
+  }
+
   async function ensureList(forceFetch = false) {
+    if (searchActive()) void runSearch(); // the frames found follow the choices, and an edit or a delete
     if (state.categoryId === null || state.brandId === null) {
       state.token++;
       state.list = { status: "idle", frames: [], source: "", error: "" };
@@ -140,6 +174,25 @@
       addFrame: h("button", { class: "btn btn--primary", type: "button", id: "add-frame", hidden: true, onclick: openCreateFrame }, icon("plus"), "Add frame"),
       results: h("div", { class: "results", "aria-live": "polite" }),
     };
+    // the frames search: a box, and how to search (by model or by code)
+    const frameSearch = h("input", { class: "search__input", type: "search", id: "frames-search", placeholder: SEARCH_PLACEHOLDER.model, "aria-label": "Search frames", autocomplete: "off", "data-frames-search": "" });
+    frameSearch.addEventListener("input", () => {
+      state.searchText = frameSearch.value;
+      clearTimeout(state.searchTimer);
+      state.searchTimer = setTimeout(runSearch, 150); // the list is made again as the person types, without a request at every key
+    });
+    refs.frameSearch = frameSearch;
+    refs.searchModes = h("div", { class: "chips pick-modes", role: "group", "aria-label": "Search by", "data-search-modes": "" }, [["model", "By model"], ["code", "By code"]].map(([mode, label]) =>
+      h("button", { class: "chip", type: "button", "data-mode": mode, "aria-pressed": String(mode === state.by), onclick: () => {
+        state.by = mode;
+        for (const b of refs.searchModes.children) b.setAttribute("aria-pressed", String(b.dataset.mode === mode));
+        frameSearch.placeholder = SEARCH_PLACEHOLDER[mode];
+        frameSearch.focus();
+        clearTimeout(state.searchTimer);
+        if (searchActive()) runSearch();
+      } }, label)));
+    refs.searchHint = h("p", { class: "pick-hint pick-hint--invalid", role: "status", "data-search-hint": "", hidden: true });
+
     const search = h("input", { class: "input", type: "search", placeholder: "Find a brand", "aria-label": "Find a brand", autocomplete: "off" });
     search.addEventListener("input", () => {
       state.brandQuery = search.value;
@@ -151,7 +204,8 @@
     return h(
       "section",
       { class: "page", "aria-labelledby": "frames-title", "data-fetches": "0" },
-      h("header", { class: "page__header" }, h("div", null, h("h2", { class: "page__title", id: "frames-title" }, "Frames"), h("p", { class: "page__description" }, "Choose a category and a brand to see its frames."))),
+      h("header", { class: "page__header" }, h("div", null, h("h2", { class: "page__title", id: "frames-title" }, "Frames"), h("p", { class: "page__description" }, "Choose a category and a brand to see its frames, or search by model or by code."))),
+      h("div", { class: "frames-search" }, refs.searchModes, h("div", { class: "search pick-search__box" }, icon("search"), frameSearch), refs.searchHint),
       h(
         "div",
         { class: "picker" },
@@ -225,6 +279,13 @@
       box.dataset.status = "nothing-to-choose";
       return box.append(stateBox("glasses", "Nothing to choose from yet", catalog.categories.length === 0 ? "There are no categories in this database yet." : "There are no brands in this database yet."));
     }
+    refs.searchHint.hidden = state.found.status !== "refused";
+    refs.searchHint.textContent = state.found.status === "refused" ? state.found.message : "";
+    if (refs.frameSearch) {
+      if (state.found.status === "refused") refs.frameSearch.setAttribute("aria-invalid", "true");
+      else refs.frameSearch.removeAttribute("aria-invalid");
+    }
+    if (searchActive()) return renderFound(box);
     if (list.status === "idle") {
       box.dataset.status = "idle";
       const missing = state.categoryId === null && state.brandId === null ? "a category and a brand" : state.categoryId === null ? "a category" : "a brand";
@@ -247,6 +308,22 @@
     if (list.status === "error") return box.append(stateBox("alert", "The frames couldn't be loaded", list.error, h("button", { class: "btn btn--secondary", type: "button", onclick: () => ensureList(true) }, "Try again")));
     if (list.frames.length === 0) return box.append(stateBox("glasses", "No frames here yet", `There are no ${brandName()} frames in ${categoryName()}.`));
     box.append(h("div", { class: "grid" }, list.frames.map(card)));
+  }
+
+  /** The frames found by the search (all the frames, or only those of the chosen brand and category). */
+  function renderFound(box) {
+    const { found } = state;
+    const where = [state.categoryId !== null ? categoryName() : null, state.brandId !== null ? brandName() : null].filter(Boolean).join(" · ");
+    box.dataset.status = found.status;
+    box.dataset.source = "search";
+    if (found.status === "refused") return; // what is wrong is said under the search box
+    const title = `Results for “${state.searchText.trim()}”`;
+    box.append(h("div", { class: "results__bar" }, h("div", { class: "results__summary" }, h("h3", { class: "results__title", title }, title), where ? h("span", { class: "results__count", "data-search-scope": "" }, where) : null, found.status === "ready" ? h("span", { class: "results__count", "data-search-count": "" }, `${found.frames.length} ${found.frames.length === 1 ? "frame" : "frames"}`) : null)));
+    if (found.status === "loading") return box.append(h("div", { class: "grid", "aria-busy": "true" }, Array.from({ length: 6 }, skeletonCard)));
+    if (found.status === "error") return box.append(stateBox("alert", "The frames couldn't be searched", found.message, h("button", { class: "btn btn--secondary", type: "button", onclick: runSearch }, "Try again")));
+    if (found.frames.length === 0) return box.append(stateBox("search", "No frame matches", where ? `Nothing found for “${state.searchText.trim()}” in ${where}.` : `Nothing found for “${state.searchText.trim()}”.`));
+    box.append(h("div", { class: "grid" }, found.frames.map(card)));
+    if (found.more) box.append(h("p", { class: "results__more", "data-more": "" }, "Showing the first 60. Keep typing to narrow it down."));
   }
 
   function skeletonCard() {
@@ -484,6 +561,7 @@
         if (root && state.categoryId === created.categoryId && state.brandId === created.brandId) ensureList(true);
         const photos = result.photosSaved ? ` with ${result.photosSaved} ${result.photosSaved === 1 ? "photo" : "photos"}` : "";
         if (result.sentToServer) toast(`${result.frame.name} was added${photos} and sent to the server.`);
+        else if (result.notSentBecause === "still-sending") toast(`${result.frame.name} was saved${photos}. It is being sent to the server.`);
         else toast(`${result.frame.name} was saved on this computer${photos}. It will be sent to the server when it can be reached.`);
       },
     });
@@ -507,6 +585,7 @@
         const parts = [result.photosAdded ? `${result.photosAdded} added` : null, result.photosRemoved ? `${result.photosRemoved} removed` : null].filter(Boolean);
         const photos = parts.length ? ` (photos: ${parts.join(", ")})` : "";
         if (result.sentToServer && !result.deletionsWaiting) toast(`${result.frame.name} was updated${photos} and sent to the server.`);
+        else if (result.notSentBecause === "still-sending") toast(`${result.frame.name} was updated${photos}. The changes are being sent to the server.`);
         else toast(`${result.frame.name} was updated${photos} on this computer. The server will get the changes when it can be reached.`);
       },
       onDeleted(result) {

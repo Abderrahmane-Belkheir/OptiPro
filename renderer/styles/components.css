@@ -366,3 +366,6 @@ textarea.input {
 .toast--error .icon {
   color: #f0a39c;
 }
+
+/* A table row that opens a page when it is clicked (shell.js: tr[data-href]) */
+tr[data-href] { cursor: pointer; }

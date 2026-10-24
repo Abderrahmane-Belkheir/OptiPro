@@ -7,7 +7,8 @@ import { markSyncedIfUnchanged, pushInsertRows, reportPushOutcome, toApiRow } fr
 import { LocalDbError, translateError } from "./errors";
 import { randomUUID } from "node:crypto";
 import { newProductCode } from "./productCodes";
-import { searchFrames } from "./productSearch";
+import { Prisma } from "../generated/sqlite-client";
+import { searchFrameIds, searchFrames, type SearchBy } from "./productSearch";
 import { frameDetails } from "./frameDetails";
 import fs from "node:fs/promises";
 import path from "node:path";
@@ -73,7 +74,7 @@ export type CreateFrameResult =
       /** True when the server has the frame (it is marked synced); false when it could not be sent yet. */
       sentToServer: boolean;
       /** Why it was not sent, when it was not: "push-failed" (offline or refused) or "parents-not-synced" (its brand is not on the server yet). */
-      notSentBecause?: "push-failed" | "parents-not-synced";
+      notSentBecause?: "push-failed" | "parents-not-synced" | "still-sending";
       /** How many photos the server has now (always 0 when the frame itself was not sent). */
       photosUploaded: number;
       steps: string[];
@@ -86,6 +87,24 @@ export type EditFrameResult =
 
 /** What `delete` answers. */
 export type DeleteFrameResult = { status: "deleted"; id: string; name: string; steps: string[] } & DeleteOutcome;
+
+/** The join repeats a frame once per photo: folds the rows back into one frame with its photos. */
+async function foldFrames(rows: JoinedFrameRow[]): Promise<FrameWithPhotos[]> {
+    const localFiles = rows.some((r) => r.imageId !== null) ? await localPhotoFiles() : new Map<string, string>();
+    const frames = new Map<string, FrameWithPhotos>();
+    for (const { imageId, imageSynced, images, colors, ...frame } of rows) {
+      let entry = frames.get(frame.id);
+      if (!entry) {
+        entry = { ...frame, images: decodeStringArray(images), colors: decodeStringArray(colors), photos: [] };
+        frames.set(frame.id, entry);
+      }
+      if (imageId !== null) entry.photos.push({ id: imageId, url: photoAddress(imageId, localFiles), synced: Boolean(imageSynced) });
+    }
+    return [...frames.values()];
+}
+
+/** How many frames a search shows (the search looks one further to know whether there are more). */
+const FRAMES_SEARCH_PAGE = 60;
 
 export const localFrameService = {
   /** Frames matching what was typed (name, code, reference, brand), as { id, code, name, brand, price, ... }: for pickers. See productSearch.ts. */
@@ -124,18 +143,30 @@ export const localFrameService = {
        WHERE f.brand_id = ${brandId} AND f.category_id = ${categoryId}
        ORDER BY f.name ASC, f.id ASC, pi.id ASC`;
 
-    // The join repeats a frame once per photo: fold the rows back into one frame with its photos.
-    const localFiles = rows.some((r) => r.imageId !== null) ? await localPhotoFiles() : new Map<string, string>();
-    const frames = new Map<string, FrameWithPhotos>();
-    for (const { imageId, imageSynced, images, colors, ...frame } of rows) {
-      let entry = frames.get(frame.id);
-      if (!entry) {
-        entry = { ...frame, images: decodeStringArray(images), colors: decodeStringArray(colors), photos: [] };
-        frames.set(frame.id, entry);
-      }
-      if (imageId !== null) entry.photos.push({ id: imageId, url: photoAddress(imageId, localFiles), synced: Boolean(imageSynced) });
-    }
-    return [...frames.values()];
+    return foldFrames(rows);
+  },
+
+  /**
+   * The cards of the Frames page for a SEARCH: the frames that match what was typed (by model: name, reference or brand; by code: the code on the label), each with
+   * its photos, like listWithPhotos. `filter.brandId` and `filter.categoryId` narrow the search when they are given (the page gives the ones that are chosen);
+   * without them only what was typed counts. Answers { frames, more }: at most 60 frames in name order, and whether there were more. Typed text that is not a valid
+   * search (see productSearch.ts) throws an invalid-input error saying what is wrong.
+   */
+  async searchWithPhotos(query: string, by?: SearchBy, filter: { brandId?: string | null; categoryId?: number | null; outOfStock?: boolean; notOrdered?: boolean } = {}): Promise<{ frames: FrameWithPhotos[]; more: boolean }> {
+    const found = await searchFrameIds(query, by, filter);
+    const more = found.length > FRAMES_SEARCH_PAGE;
+    const ids = found.slice(0, FRAMES_SEARCH_PAGE);
+    if (ids.length === 0) return { frames: [], more: false };
+    const rows = await sqlitePrisma.$queryRaw<JoinedFrameRow[]>(Prisma.sql`
+      SELECT f.id, f.name, f.price, f.currency, f.images, f.shape, f.colors, f.stock,
+             f.brand_id AS brandId, f.category_id AS categoryId, f.eye_size AS eyeSize, f.bridge,
+             f.temple_length AS templeLength, f.reference, f.cost_price AS costPrice, f.code,
+             pi.id AS imageId, pi.synced AS imageSynced
+        FROM frames f
+        LEFT JOIN product_images pi ON pi.frame_id = f.id
+       WHERE f.id IN (${Prisma.join(ids)})
+       ORDER BY f.name ASC, f.id ASC, pi.id ASC`);
+    return { frames: await foldFrames(rows), more };
   },
 
   /**

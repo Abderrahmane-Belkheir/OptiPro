@@ -5,7 +5,8 @@
   "use strict";
 
   const api = window.electronAPI.suppliers;
-  const KINDS = [["lab", "Lab"], ["frames", "Frames"], ["lenses", "Lenses"], ["accessories", "Accessories"], ["other", "Other"]];
+  // (a lab is a supplier of lenses: one kind, not two. "lab" was a kind before; a record that still says it counts as lenses)
+  const KINDS = [["lenses", "Lenses (lab)"], ["frames", "Frames"], ["accessories", "Accessories"], ["other", "Other"]];
   const KIND_LABEL = Object.fromEntries(KINDS);
 
   // ---- Small helpers -------------------------------------------------------------------------
@@ -35,8 +36,8 @@
   const errorText = (error) => String(error?.message ?? error).replace(/^\[[\w-]+\]\s*/, "");
   const kindOf = (error) => /^\[([\w-]+)\]/.exec(String(error?.message ?? ""))?.[1] ?? null;
   const shown = (v) => (v === null || v === undefined ? "" : String(v));
-  /** "lab,lenses" -> ["lab", "lenses"] */
-  const kindsOf = (supplier) => String(supplier.kinds ?? "").split(",").filter((k) => KIND_LABEL[k]);
+  /** "lenses,frames" -> ["lenses", "frames"] */
+  const kindsOf = (supplier) => [...new Set(String(supplier.kinds ?? "").split(",").map((k) => (k === "lab" ? "lenses" : k)).filter((k) => KIND_LABEL[k]))];
 
   // ---- Toasts --------------------------------------------------------------------------------
 

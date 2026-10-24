@@ -45,7 +45,7 @@
   const money = (cents) => moneyFormat.format(cents / 100);
   const EYE = { right: "Right eye", left: "Left eye", both: "Both eyes" };
 
-  const state = { id: null, load: "loading", order: null, error: "", busy: false, message: "", token: 0, pending: null };
+  const state = { id: null, load: "loading", order: null, error: "", busy: false, message: "", token: 0, pending: null, editing: false };
   let root = null;
 
   async function load() {
@@ -162,14 +162,90 @@
       h(
         "table",
         { class: "table sales-table", "data-items-table": "" },
-        h("thead", null, h("tr", null, h("th", { scope: "col" }, "Item"), h("th", { scope: "col", class: "sales-money" }, "Qty"), h("th", { scope: "col", class: "sales-money" }, "Unit price"), h("th", { scope: "col", class: "sales-money" }, "Total"))),
-        h("tbody", null, order.items.map((i) => h("tr", { "data-item": i.id }, h("td", null, h("div", { class: "cell-name__stack" }, h("span", { class: "cell-name__text" }, i.description), i.eye ? h("span", { class: "cell-name__sub" }, EYE[i.eye] ?? i.eye) : null)), h("td", { class: "sales-money" }, String(i.quantity)), h("td", { class: "sales-money" }, money(i.unitPriceCents)), h("td", { class: "sales-money" }, money(i.totalCents))))),
+        h("thead", null, h("tr", null, h("th", { scope: "col" }, "Item"), h("th", { scope: "col", class: "sales-money" }, "Qty"), h("th", { scope: "col", class: "sales-money" }, "Unit price"), h("th", { scope: "col", class: "sales-money" }, "Unit cost"), h("th", { scope: "col", class: "sales-money" }, "Total"))),
+        h("tbody", null, order.items.map((i) => h("tr", { "data-item": i.id }, h("td", null, h("div", { class: "cell-name__stack" }, h("span", { class: "cell-name__text" }, i.description), i.eye ? h("span", { class: "cell-name__sub" }, EYE[i.eye] ?? i.eye) : null)), h("td", { class: "sales-money" }, String(i.quantity)), h("td", { class: "sales-money", "data-cell": "price" }, money(i.unitPriceCents)), h("td", { class: "sales-money", "data-cell": "cost" }, i.unitCostCents === null ? "—" : money(i.unitCostCents)), h("td", { class: "sales-money" }, money(i.totalCents))))),
       ),
     );
   }
 
-  function tile(key, label, value, tone) {
-    return h("div", { class: `summary__tile${tone ? ` summary__tile--${tone}` : ""}`, "data-tile": key }, h("span", { class: "summary__label" }, label), h("span", { class: "summary__value" }, value));
+  /** What an amount typed in the currency is, in centimes; null when it is empty, NaN when it is not an amount of 0 or more. */
+  function centsOf(input) {
+    const text = input.value.trim().replace(",", ".");
+    if (text === "") return null;
+    const value = Number(text);
+    return Number.isFinite(value) && value >= 0 ? Math.round(value * 100) : NaN;
+  }
+
+  /**
+   * The form that corrects the money of the order: the price and the cost of ONE piece of each lens, the cost of the other lines, and the final price of the order.
+   * The final price follows the items (the discount stays what it was) until it is typed over.
+   */
+  function editForm(order) {
+    const fields = order.items.map((i) => ({
+      item: i,
+      price: i.kind === "lens" ? h("input", { class: "od-input", type: "number", min: "0", step: "any", inputmode: "decimal", value: String(i.unitPriceCents / 100), "aria-label": `Price of ${i.description} (${CURRENCY})`, "data-edit-price": i.id }) : null,
+      cost: h("input", { class: "od-input", type: "number", min: "0", step: "any", inputmode: "decimal", value: i.unitCostCents === null ? "" : String(i.unitCostCents / 100), "aria-label": `Cost of ${i.description} (${CURRENCY})`, "data-edit-cost": i.id }),
+    }));
+    const final = h("input", { class: "od-input", type: "number", min: "0", step: "any", inputmode: "decimal", value: String(order.totalCents / 100), "aria-label": `Final price (${CURRENCY})`, "data-edit-final": "" });
+    let touched = false;
+    const hint = h("p", { class: "od-hint", "data-edit-hint": "" });
+    const subtotal = () => fields.reduce((sum, f) => { const p = f.price ? centsOf(f.price) : f.item.unitPriceCents; return sum + (Number.isNaN(p) || p === null ? f.item.unitPriceCents : p) * f.item.quantity; }, 0);
+    const refresh = () => {
+      const items = subtotal();
+      if (!touched) final.value = String((items - Math.min(order.discountCents, items)) / 100);
+      hint.textContent = `The items add up to ${money(items)}. The final price cannot be more than that, nor less than the ${money(order.paidCents)} already paid.`;
+    };
+    final.addEventListener("input", () => { touched = true; refresh(); });
+    for (const f of fields) f.price?.addEventListener("input", refresh);
+    refresh();
+
+    // what was typed stays when something is wrong: the problem is said in the form, which is not drawn again
+    const problem = h("p", { class: "od-error", role: "alert", hidden: true, "data-message": "" });
+    const say = (message) => { problem.textContent = message; problem.hidden = !message; };
+    const saveButton = h("button", { class: "btn btn--primary btn--sm", type: "submit", disabled: state.busy, "data-edit-save": "" }, "Save changes");
+    const save = async () => {
+      if (state.busy) return;
+      const lines = [];
+      for (const f of fields) {
+        const line = { id: f.item.id };
+        const cost = centsOf(f.cost);
+        const price = f.price ? centsOf(f.price) : undefined;
+        if (Number.isNaN(cost) || Number.isNaN(price) || price === null) return say("Type each amount as 0 or more.");
+        if (price !== undefined) line.unitPriceCents = price;
+        line.unitCostCents = cost;
+        lines.push(line);
+      }
+      const finalCents = centsOf(final);
+      if (finalCents === null || Number.isNaN(finalCents)) return say("Type each amount as 0 or more.");
+      say("");
+      state.busy = true;
+      saveButton.disabled = true;
+      try {
+        state.order = await api.edit(order.id, { lines, ...(touched ? { finalPriceCents: finalCents } : {}) });
+        state.editing = false;
+        state.busy = false;
+        render();
+      } catch (error) {
+        state.busy = false;
+        saveButton.disabled = false;
+        say(errorText(error));
+      }
+    };
+    const field = (label, input) => h("label", { class: "od-field" }, h("span", { class: "od-field__label" }, label), input);
+    return h(
+      "form",
+      { class: "od-edit", "data-edit": "", onsubmit: (e) => { e.preventDefault(); save(); } },
+      h("div", { class: "od-edit__lines" }, fields.map((f) => h("div", { class: "od-edit__line", "data-edit-line": f.item.id }, h("span", { class: "od-edit__name" }, f.item.description, f.item.eye ? h("span", { class: "cell-name__sub" }, EYE[f.item.eye] ?? f.item.eye) : null), f.price ? field(`Price (${CURRENCY})`, f.price) : h("span", { class: "od-edit__fixed" }, money(f.item.unitPriceCents)), field(`Cost (${CURRENCY})`, f.cost)))),
+      h("p", { class: "od-hint" }, "Leave a cost empty when it is not known."),
+      field(`Final price (${CURRENCY})`, final),
+      hint,
+      problem,
+      h("div", { class: "od-status__confirm" }, saveButton, h("button", { class: "btn btn--secondary btn--sm", type: "button", disabled: state.busy, "data-edit-cancel": "", onclick: () => { state.editing = false; state.message = ""; render(); } }, "Cancel")),
+    );
+  }
+
+  function tile(key, label, value, tone, note) {
+    return h("div", { class: `summary__tile${tone ? ` summary__tile--${tone}` : ""}`, "data-tile": key }, h("span", { class: "summary__label" }, label), h("span", { class: "summary__value" }, value), note ? h("span", { class: "summary__note" }, note) : null);
   }
 
   // ---- The page ------------------------------------------------------------------------------
@@ -199,13 +275,13 @@
         ),
         h("span", { class: `status status--${o.status}`, "data-status": o.status }, LABEL[o.status] ?? o.status),
       ),
-      h("div", { class: "summary" }, tile("total", "Total", money(o.totalCents)), tile("paid", "Paid", money(o.paidCents)), tile("left", "Left to pay", o.status === "cancelled" ? "—" : money(o.remainingCents), o.remainingCents > 0 ? "due" : null)),
+      h("div", { class: "summary" }, tile("total", "Total", money(o.totalCents)), tile("paid", "Paid", money(o.paidCents)), tile("left", "Left to pay", o.status === "cancelled" ? "—" : money(o.remainingCents), o.remainingCents > 0 ? "due" : null), tile("cost", "Cost", o.costCents === null ? "—" : money(o.costCents)), tile("profit", "Net profit", o.profitCents === null ? "—" : money(o.profitCents), o.profitCents !== null && o.profitCents < 0 ? "due" : null), o.trackingCode ? tile("tracking", "Tracking code", String(o.trackingCode), null, "The customer follows the order with this code on the website.") : null),
       state.message ? h("p", { class: "od-error", role: "alert", "data-message": "" }, state.message) : null,
       h("section", { class: "od-section" }, h("h3", { class: "od-section__title" }, "Status"), statusSwitch(o)),
       o.canPay ? h("section", { class: "od-section" }, payForm(o)) : null,
-      h("section", { class: "od-section", "data-documents": "" }, h("h3", { class: "od-section__title" }, "Documents"), window.orderPrintBar(o.id, { lab: o.items.some((i) => i.kind === "lens") })),
+      h("section", { class: "od-section", "data-documents": "" }, h("h3", { class: "od-section__title" }, "Documents"), window.orderPrintBar(o.id, { supplier: o.status === "confirmed" })),
       h("section", { class: "od-section" }, h("h3", { class: "od-section__title" }, "Payments"), h("div", { class: "table-card" }, paymentsTable(o))),
-      h("section", { class: "od-section" }, h("h3", { class: "od-section__title" }, "Items"), h("div", { class: "table-card" }, itemsTable(o)), o.discountCents > 0 ? h("p", { class: "od-hint", "data-discount": "" }, `Discount: ${money(o.discountCents)}`) : null),
+      h("section", { class: "od-section" }, h("div", { class: "od-section__head" }, h("h3", { class: "od-section__title" }, "Items"), o.items.length > 0 && !state.editing ? h("button", { class: "btn btn--secondary btn--sm", type: "button", "data-edit-open": "", onclick: () => { state.editing = true; state.message = ""; render(); } }, "Edit prices and costs") : null), state.editing ? editForm(o) : h("div", { class: "table-card" }, itemsTable(o)), o.discountCents > 0 ? h("p", { class: "od-hint", "data-discount": "" }, `Discount: ${money(o.discountCents)}`) : null),
       o.notes ? h("section", { class: "od-section" }, h("h3", { class: "od-section__title" }, "Notes"), h("p", { class: "od-notes", "data-notes": "" }, o.notes)) : null,
       ].filter(Boolean),
     );
@@ -226,6 +302,7 @@
         state.order = null;
         state.pending = null;
         state.message = "";
+        state.editing = false;
       }
       state.id = id;
       load();
@@ -237,6 +314,7 @@
       state.order = null;
       state.pending = null;
       state.message = "";
+      state.editing = false;
     }
   }
 

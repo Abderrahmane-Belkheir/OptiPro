@@ -12,7 +12,7 @@ export const API_METHODS = {
   categories: ["list", "get"],
   /** Every category and brand as { id, name }, in one call: catalog.getCategoriesAndBrands(). */
   catalog: ["getCategoriesAndBrands"],
-  frames: ["list", "search", "details", "listWithPhotos", "create", "edit", "delete", "get", "insert", "insertMany", "update", "remove"],
+  frames: ["list", "search", "searchWithPhotos", "details", "listWithPhotos", "create", "edit", "delete", "get", "insert", "insertMany", "update", "remove"],
   accessories: ["list", "search", "details", "listWithPhotos", "create", "edit", "delete", "get", "insert", "insertMany", "update", "remove"],
   customers: ["list", "get", "search", "insert", "insertMany", "update", "delete"],
   /** A customer's history: listForCustomer(customerId) newest first; create(form) / edit(id, form) validate first (a prescription an order uses cannot be edited or deleted). */
@@ -27,15 +27,21 @@ export const API_METHODS = {
   /** Photos of frames and accessories: upload(type, code, bytes[, photoId]) adds one photo to the frame/accessory with id `code` (type is "frame" or "accessory"; the photo's UUID is made up when not given); choose(type, code) opens a file picker and uploads each pick the same way. Needs a connection. */
   images: ["upload", "choose"],
   /** What the Dashboard page shows; read-only. */
-  dashboard: ["today", "attention", "stages", "lowStock", "recentCustomers", "syncStatus", "salesByDay"],
+  dashboard: ["month", "owed", "ready", "recentCustomers", "syncStatus"],
   /** The Sales page: list({ status, query, limit }) -> every order with its customer and money, the counts per status and the totals. Read-only. */
   sales: ["list"],
+  /** The Reports page: overview({ year, month }) is the picture of a period (nothing = everything) compared with the one before; debtors() who owes money today; inventory() what the stock is worth today. Read-only. */
+  reports: ["overview", "debtors", "inventory"],
   paymentsView: ["list"],
-  orderDetails: ["get", "setStatus", "pay"],
+  orderDetails: ["get", "setStatus", "pay", "edit"],
   /** The New order form: place(draft) checks the draft, then saves the order, its lines and the deposit together; answers { status: "invalid", errors } or { status: "placed", order, ... }. */
   orderPlacement: ["place"],
+  /** The orders placed with suppliers for frames: place(draft) saves one (a frame at stock 0 gets its stock and cost, the others wait), list() the orders newest first, get(id) one order with its lines. */
+  supplierOrders: ["place", "list", "get", "searchProducts"],
   /** An order's printed papers: print(orderId, "invoice" | "lab", lang) opens the print dialog with the customer's invoice (issued on the first print, the same one after) or the lab sheet; issueInvoice(orderId) issues it without printing; html(orderId, kind, lang) is the page itself. */
-  documents: ["print", "issueInvoice", "html"],
+  documents: ["print", "issueInvoice", "html", "labPdf", "savePdf"],
+  /** Opens a message to a supplier in the browser: openEmail({ to, subject, message, file }) is Gmail's compose page, openWhatsApp({ phone, message, file }) a WhatsApp chat; both show the PDF in its folder (a link can not attach it). */
+  contact: ["openEmail", "openWhatsApp"],
   /** The suppliers directory: list() by name (retired ones too); create(form) / edit(id, form) validate first and answer { status: "invalid", errors } or the saved supplier; setActive(id, bool) retires or restores one; delete(id) removes it here and on the server. */
   suppliers: ["list", "get", "create", "edit", "setActive", "delete"],
   /** The shop's own details (the Settings page): get() -> the saved details and whether the server has them; save(form) validates, saves only what differs from what is saved (an empty field means "leave it"), and sends it to the server; answers { status: "invalid", errors } | { status: "unchanged" } | { status: "saved", changed, sentToServer }; isPending() / pushPending() are what the sync pass uses. */

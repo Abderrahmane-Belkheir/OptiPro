@@ -4,7 +4,7 @@
 // Type-only imports: nothing here ends up in the preload bundle.
 import type {
   localAccessoryService, localBrandService, localCatalogService, localCategoryService, localCustomerService, localDashboardService,
-  localFrameService, localLabelService, localSalesService, localPaymentsService, localOrderDetailsService, localOrderPlacementService, localDocumentService, localSupplierService, localShopInfoService, localImageService, localInvoiceItemService, localInvoiceService, localLensService, localNumberService,
+  localFrameService, localLabelService, localSalesService, localReportsService, localPaymentsService, localOrderDetailsService, localOrderPlacementService, localSupplierOrdersService, localDocumentService, localContactService, localSupplierService, localShopInfoService, localImageService, localInvoiceItemService, localInvoiceService, localLensService, localNumberService,
   localOrderItemService, localOrderService, localPaymentService, localPrescriptionService,
 } from "../local";
 import type { API_METHODS } from "./channels";
@@ -27,10 +27,13 @@ interface Services {
   dashboard: typeof localDashboardService;
   labels: typeof localLabelService;
   sales: typeof localSalesService;
+  reports: typeof localReportsService;
   paymentsView: typeof localPaymentsService;
   orderDetails: typeof localOrderDetailsService;
   orderPlacement: typeof localOrderPlacementService;
+  supplierOrders: typeof localSupplierOrdersService;
   documents: typeof localDocumentService;
+  contact: typeof localContactService;
   suppliers: typeof localSupplierService;
   shopInfo: typeof localShopInfoService;
   numbers: typeof localNumberService;

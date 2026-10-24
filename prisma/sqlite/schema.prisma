@@ -81,6 +81,7 @@ model Frame {
   tenant    Tenant @relation(fields: [tenantKey], references: [key])
 
   orderItems OrderItem[]
+  supplierOrderItems SupplierOrderItem[]
 
   /// Printed on every frame: eye size, bridge and temple length in mm (e.g. 52-18-140).
   eyeSize      Int?    @map("eye_size")
@@ -121,6 +122,7 @@ model Accessory {
   tenant    Tenant @relation(fields: [tenantKey], references: [key])
 
   orderItems OrderItem[]
+  supplierOrderItems SupplierOrderItem[]
 
   costPrice Float? @map("cost_price")
 
@@ -201,6 +203,8 @@ model Tenant {
   prescriptions   Prescription[]
   lenses          Lens[]
   suppliers       Supplier[]
+  supplierOrders     SupplierOrder[]
+  supplierOrderItems SupplierOrderItem[]
   orders          Order[]
   orderItems      OrderItem[]
   payments        Payment[]
@@ -265,7 +269,7 @@ model Prescription {
 model Supplier {
   id          String  @id @default(uuid())
   name        String
-  /// What they supply: a comma-separated list of lab, frames, lenses, accessories, other (may be empty).
+  /// What they supply: a comma-separated list of lenses (a lab is a supplier of lenses), frames, accessories, other (may be empty).
   kinds       String  @default("")
   contactName String? @map("contact_name")
   phone       String?
@@ -274,6 +278,8 @@ model Supplier {
   notes       String?
   /// False = retired: no longer used, but kept in the records.
   isActive    Boolean @default(true) @map("is_active")
+
+  supplierOrders SupplierOrder[]
 
   tenantKey String   @map("tenant_key")
   tenant    Tenant   @relation(fields: [tenantKey], references: [key])
@@ -284,6 +290,63 @@ model Supplier {
 
   @@index([tenantKey, name])
   @@map("suppliers")
+}
+
+/// An order placed with a supplier for frames and accessories to restock (lens orders stay with the customer's order). Never deleted: cancel it with the status.
+model SupplierOrder {
+  id         String   @id @default(uuid())
+  supplierId String   @map("supplier_id")
+  supplier   Supplier @relation(fields: [supplierId], references: [id], onDelete: Restrict)
+  orderedAt  DateTime @default(now()) @map("ordered_at")
+  /// How the price was given: unit (a price for each frame) | batch (one price for the whole order, shared over the frames bought).
+  priceMode  String   @default("unit") @map("price_mode")
+  /// What the whole order cost, in minor units: the batch price as typed, or the sum of the lines.
+  totalCents Int      @default(0) @map("total_cents")
+  /// received | cancelled
+  status     String   @default("received")
+  notes      String?
+
+  items SupplierOrderItem[]
+
+  tenantKey String   @map("tenant_key")
+  tenant    Tenant   @relation(fields: [tenantKey], references: [key])
+  /// Whether this row has been sent to the backend. Local-only column.
+  synced    Boolean  @default(false)
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  @@index([tenantKey, orderedAt])
+  @@index([supplierId])
+  @@map("supplier_orders")
+}
+
+/// One frame (or accessory) of a supplier order: how many were bought and what ONE cost, in minor units. With a batch price the unit cost is the total shared over
+/// the frames bought. These lines are the cost history of a product. Never deleted.
+model SupplierOrderItem {
+  id              String         @id @default(uuid())
+  supplierOrderId String         @map("supplier_order_id")
+  supplierOrder   SupplierOrder  @relation(fields: [supplierOrderId], references: [id], onDelete: Cascade)
+  frameId         String?        @map("frame_id")
+  frame           Frame?         @relation(fields: [frameId], references: [id])
+  accessoryId     String?        @map("accessory_id")
+  accessory       Accessory?     @relation(fields: [accessoryId], references: [id])
+
+  quantity      Int @default(1)
+  /// What ONE cost, in minor units (the price typed for the frame, or the batch price shared over the frames bought).
+  unitCostCents Int @map("unit_cost_cents")
+  /// True when this line set the frame's stock and cost (the frame was at stock 0 when the order was placed); false when the frame still had stock and kept its own.
+  used          Boolean @default(false)
+
+  tenantKey String   @map("tenant_key")
+  tenant    Tenant   @relation(fields: [tenantKey], references: [key])
+  /// Whether this row has been sent to the backend. Local-only column.
+  synced    Boolean  @default(false)
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  @@index([supplierOrderId])
+  @@index([frameId])
+  @@map("supplier_order_items")
 }
 
 model Lens {
@@ -364,6 +427,10 @@ model Order {
   fittingHeightRight Float? @map("fitting_height_right")
   fittingHeightLeft  Float? @map("fitting_height_left")
 
+  /// A 6-digit number (100000 to 999999), different for every order of the shop, made when an order WITH A PRESCRIPTION is placed (the others have none): what a customer uses to follow the order (GET /api/orders/<code>).
+  /// Sent to the server with the order (the orders table there needs the column: backend/prisma/tracking_code.sql). Orders placed before it existed have none.
+  trackingCode Int? @map("tracking_code")
+
   items    OrderItem[]
   payments Payment[]
   invoices Invoice[]
@@ -376,6 +443,7 @@ model Order {
   updatedAt DateTime @updatedAt @map("updated_at")
 
   @@unique([tenantKey, number])
+  @@unique([tenantKey, trackingCode])
   @@index([customerId])
   @@index([tenantKey, status])
   @@map("orders")
@@ -401,6 +469,9 @@ model OrderItem {
   quantity       Int     @default(1)
   unitPriceCents Int     @map("unit_price_cents")
   totalCents     Int     @map("total_cents")
+  /// What one unit COST the shop on the day of the sale, in minor units: a copy, like the price, so a later change of the product's cost never changes the profit
+  /// of an order already made. Null = the cost was not known (the product had none entered): the order's profit is then unknown too.
+  unitCostCents  Int?    @map("unit_cost_cents")
 
   tenantKey String   @map("tenant_key")
   tenant    Tenant   @relation(fields: [tenantKey], references: [key])
@@ -529,12 +600,10 @@ model PendingDeletion {
   @@map("pending_deletions")
 }
 
-/// When this installation's licence runs out, and the shop's own details. Local-only table: the table API does not know it (it has no tenant_key); only the
-/// details are sent, with POST /api/infos, and `synced` says whether the server has them. At most one row, with id 1.
+/// The shop's own details (the table keeps its old name, license_expiry, but holds no date: only the server knows when the licence ends). Local-only table: the table
+/// API does not know it (it has no tenant_key); only the details are sent, with POST /api/infos, and `synced` says whether the server has them. At most one row, id 1.
 model LicenseExpiry {
   id        Int      @id @default(1)
-  /// The day after which the licence is no longer valid.
-  expiresAt DateTime @map("expires_at")
   /// The shop's own details, as the person typed them when activating and the server accepted them. All optional.
   shopName     String? @map("shop_name")
   instagramUrl String? @map("instagram_url")

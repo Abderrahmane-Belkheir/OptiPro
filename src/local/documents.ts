@@ -54,6 +54,8 @@ export interface LabLens {
 }
 
 export interface LabDoc {
+  /** The order's id. */
+  orderId: string;
   shop: DocShop;
   orderNumber: string;
   orderedAt: string;
@@ -219,6 +221,17 @@ function lensSpecText(spec: NonNullable<LabLens["spec"]>, w: Words): string {
 
 export function labSheetHtml(doc: LabDoc, langIn: unknown): string {
   const lang = docLang(langIn);
+  return page(lang, `${WORDS[lang].labOrder} ${doc.orderNumber}`, labSheetBody(doc, lang));
+}
+
+/** Several lab sheets in one document, one per page, in the order given (what is sent to a lens supplier in one go). */
+export function labBundleHtml(docs: LabDoc[], langIn: unknown): string {
+  const lang = docLang(langIn);
+  const body = docs.map((doc) => `<section style="break-after:page;page-break-after:always">${labSheetBody(doc, lang)}</section>`).join("");
+  return page(lang, `${WORDS[lang].labOrder} (${docs.length})`, body);
+}
+
+function labSheetBody(doc: LabDoc, lang: DocLang): string {
   const w = WORDS[lang];
   const eyeRow = (label: string, eye: LabEye) => {
     const sphere = eye.sphere === null && eye.cylinder !== null ? w.plano : diopter(eye.sphere);
@@ -250,5 +263,5 @@ export function labSheetHtml(doc: LabDoc, langIn: unknown): string {
     ${f ? `<h2>${esc(w.frame)}</h2>${frame}` : ""}
     <div style="margin-top:12pt"><span class="box"></span>${esc(w.frameSent)}</div>
     ${doc.notes ? `<h2>${esc(w.notes)}</h2><div class="note">${esc(doc.notes)}</div>` : ""}`;
-  return page(lang, `${w.labOrder} ${doc.orderNumber}`, body);
+  return body;
 }

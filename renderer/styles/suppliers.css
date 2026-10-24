@@ -17,6 +17,19 @@
   color: var(--color-text-secondary);
 }
 
+/* The New supplier order form: the lines (frame, quantity, price), the results with their Add button. */
+.supplier-lines { width: 100%; }
+.supplier-lines__n { text-align: end; white-space: nowrap; font-variant-numeric: tabular-nums; }
+.supplier-lines__input { width: 7.5rem; text-align: end; }
+.supplier-result { cursor: default; }
+.supplier-result .pick-result__side { align-items: flex-end; gap: var(--space-2); }
+.supplier-result__entry { display: flex; flex-wrap: wrap; justify-content: flex-end; align-items: center; gap: var(--space-2); }
+.supplier-result__input { width: 6.5rem; text-align: end; }
+.supplier-result__input[type="number"] { width: 4.5rem; }
+[data-batch][data-enabled="false"] { opacity: 0.6; }
+.supplier-result[data-added="true"] { opacity: 0.7; }
+.pick-results__more { margin: 0; padding: var(--space-2) var(--space-4); color: var(--color-text-muted); font-size: var(--text-xs); border-top: 1px solid var(--color-border); }
+
 .supplier-notes {
   display: -webkit-box;
   -webkit-line-clamp: 2;

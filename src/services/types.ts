@@ -208,6 +208,8 @@ export interface Lens extends Stamped {
 }
 
 export interface Order extends Stamped {
+  /** A 6-digit number the customer can follow the order with (local only for now); null for an order placed before it existed. */
+  trackingCode: number | null;
   id: string;
   /** e.g. CMD-2026-0042. Unique per shop. */
   number: string;
@@ -243,6 +245,33 @@ export interface OrderItem extends Stamped {
   quantity: number;
   unitPriceCents: number;
   totalCents: number;
+  /** What one unit cost the shop on the day of the sale (a copy); null = not known. */
+  unitCostCents: number | null;
+}
+
+/** An order placed with a supplier for frames and accessories. */
+export interface SupplierOrder extends Stamped {
+  id: string;
+  supplierId: string;
+  orderedAt: string;
+  /** unit (a price for each frame) | batch (one price for the whole order). */
+  priceMode: string;
+  totalCents: number;
+  /** received | cancelled */
+  status: string;
+  notes: string | null;
+}
+
+/** One frame or accessory of a supplier order, with what ONE cost. */
+export interface SupplierOrderItem extends Stamped {
+  id: string;
+  supplierOrderId: string;
+  frameId: string | null;
+  accessoryId: string | null;
+  quantity: number;
+  unitCostCents: number;
+  /** True when this line set the frame's stock and cost (the frame was at 0). */
+  used: boolean;
 }
 
 export interface Payment extends Stamped {
@@ -373,6 +402,27 @@ export interface NewOrderItem {
   quantity?: number;
   unitPriceCents: number;
   totalCents: number;
+  unitCostCents?: number | null;
+}
+
+export interface NewSupplierOrder {
+  id?: string;
+  supplierId: string;
+  orderedAt?: string;
+  priceMode?: string;
+  totalCents?: number;
+  status?: string;
+  notes?: string | null;
+}
+
+export interface NewSupplierOrderItem {
+  id?: string;
+  supplierOrderId: string;
+  frameId?: string | null;
+  accessoryId?: string | null;
+  quantity?: number;
+  unitCostCents: number;
+  used?: boolean;
 }
 
 export interface NewPayment {

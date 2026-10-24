@@ -58,6 +58,19 @@ const out = runScript(
     any: names(await S2.searchAccessories('xyz-111', 20)),
   };
   out.limit = { asked21: (await S2.searchFrames('test', 21, 'model')).length, asked5: (await S2.searchFrames('test', 5, 'model')).length };
+  // what a customer's order can be made with: only what is in stock
+  await frame('z0', 'Zero stock model', 'b1', 'ZZ0', 'zzz-000');
+  await p.frame.update({ where: { id: 'z0' }, data: { stock: 0 } });
+  await p.accessory.create({ data: { id: 'a0', name: 'Zero stock case', description: 'None left', price: 100, currency: 'DZD', stock: 0, code: 'zzz-001', ...S } });
+  out.inStock = {
+    framesAll: names(await S2.searchFrames('zero stock', 20, 'model')),
+    framesIn: names(await S2.searchFrames('zero stock', 20, 'model', { inStock: true })),
+    framesInOthers: names(await S2.searchFrames('aviator', 20, 'model', { inStock: true })),
+    accessoriesAll: names(await S2.searchAccessories('zero stock', 20, 'model')),
+    accessoriesIn: names(await S2.searchAccessories('zero stock', 20, 'model', { inStock: true })),
+    accessoriesInOthers: names(await S2.searchAccessories('case', 20, 'model', { inStock: true })),
+    byCode: names(await S2.searchFrames('zzz-000', 20, 'code', { inStock: true })),
+  };
   const CASES = ${JSON.stringify(CASES)};
   out.valid = CASES.valid.map((c) => S2.checkSearchInput(c.input, c.by));
   out.invalid = CASES.invalid.map((c) => S2.checkSearchInput(c.input, c.by));
@@ -107,6 +120,12 @@ R.ck(Object.entries(r.thrown).filter(([name]) => name !== "url").every(([, v]) =
 R.ck(/^invalid-input/.test(r.thrown.url), "a label's address is not a code: the form turns it into the code first", r.thrown.url);
 R.ck(r.ok.none && r.ok.empty, "nothing typed is fine (the first ones, as before)");
 R.ck(r.ok.partialCode === "Aviator Classic" && r.ok.normalized === "Aviator Classic", "a code typed in part, and a model with capitals and spaces around it, still search");
+
+R.section("only what is in stock");
+R.ck(r.inStock.framesAll === "Zero stock model" && r.inStock.accessoriesAll === "Zero stock case", "without the filter a product with no stock is found (the other pages need it)");
+R.ck(r.inStock.framesIn === "" && r.inStock.accessoriesIn === "", "with the filter a frame or an accessory with no stock is not found", JSON.stringify(r.inStock));
+R.ck(r.inStock.framesInOthers === "Aviator Classic" && r.inStock.accessoriesInOthers === "Hard case", "the ones in stock still are");
+R.ck(r.inStock.byCode === "", "by code too");
 
 R.section("limit");
 R.ck(r.limit.asked21 === 21 && r.limit.asked5 === 5, "one more than shown can be asked for (to know there are more), and a smaller limit is kept");

@@ -5,7 +5,8 @@ import type { FieldErrors } from "./frameValidation";
  * field, nothing is thrown. Only the name is required: a shop may know a supplier by a phone number and nothing else.
  *
  *   name          required, up to 120 characters (runs of spaces become one)
- *   kinds         what they supply: any of lab, frames, lenses, accessories, other (a list, or a comma-separated text); may be empty
+ *   kinds         what they supply: any of lenses, frames, accessories, other (a list, or a comma-separated text); may be empty. A lab is a supplier of
+ *                 lenses, so there is no separate "lab" kind; the word "lab" is still understood (it was one) and means lenses
  *   contactName   up to 120 characters
  *   phone         6 to 30 characters: digits, spaces and + - ( ) . /   with at least 6 digits
  *   email         a plain address (name@domain.tld), up to 254 characters
@@ -15,7 +16,9 @@ import type { FieldErrors } from "./frameValidation";
 
 type Value = string | number | boolean | string[] | null | undefined;
 
-export const SUPPLIER_KINDS = ["lab", "frames", "lenses", "accessories", "other"] as const;
+export const SUPPLIER_KINDS = ["lenses", "frames", "accessories", "other"] as const;
+/** Kinds that were renamed: what an older record or an older caller says -> what it means now. */
+const RENAMED: Record<string, string> = { lab: "lenses" };
 export type SupplierKind = (typeof SUPPLIER_KINDS)[number];
 
 export const SUPPLIER_NAME_MAX = 120;
@@ -49,9 +52,9 @@ const blank = (v: unknown) => v === undefined || v === null || (typeof v === "st
 const EMAIL = /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/;
 const PHONE_CHARS = /^[0-9+\-\s().\/]+$/;
 
-/** The kinds in a stored text: "lab,lenses" -> ["lab", "lenses"] (what is not a known kind is left out). */
+/** The kinds in a stored text: "lenses,frames" -> ["lenses", "frames"] (what is not a known kind is left out; an old "lab" counts as lenses). */
 export function kindsOf(text: string | null | undefined): SupplierKind[] {
-  const wanted = new Set(String(text ?? "").split(",").map((k) => k.trim()));
+  const wanted = new Set(String(text ?? "").split(",").map((k) => k.trim()).map((k) => RENAMED[k] ?? k));
   return SUPPLIER_KINDS.filter((k) => wanted.has(k));
 }
 
@@ -106,7 +109,7 @@ export function validateSupplierForm(form: SupplierForm): { supplier: CleanSuppl
     const given = Array.isArray(f.kinds) ? f.kinds : typeof f.kinds === "string" ? f.kinds.split(",") : null;
     if (given === null) errors.kinds = "Choose what the supplier supplies from the list.";
     else {
-      const names = given.map((k) => (typeof k === "string" ? k.trim().toLowerCase() : "")).filter((k) => k !== "");
+      const names = given.map((k) => (typeof k === "string" ? k.trim().toLowerCase() : "")).filter((k) => k !== "").map((k) => RENAMED[k] ?? k);
       const unknown = names.find((k) => !(SUPPLIER_KINDS as readonly string[]).includes(k));
       if (unknown !== undefined) errors.kinds = `“${unknown}” is not something a supplier can supply: choose from ${SUPPLIER_KINDS.join(", ")}.`;
       else kinds = SUPPLIER_KINDS.filter((k) => names.includes(k)).join(",");

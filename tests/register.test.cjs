@@ -1,6 +1,6 @@
-// POST /api/register, on the Cloudflare Worker and on the Express backend (both with an in-memory stand-in for the database): a shop registers once (the key's
-// format, existence and an expiry that is still empty: one 401 UNAUTHORIZED for all of them), the body's checks, the update of the tenants row, the expiry set
-// to today + 14 days and sent back, and which other endpoints look at the expiry. The SQL itself is not run here (no Postgres): the stand-in reads the same statements the servers send.
+// POST /api/register, on the Cloudflare Worker and on the Express backend (both with an in-memory stand-in for the database): a shop registers (the key's
+// format, existence and a licence that is not expired: one 401 UNAUTHORIZED for all of them), the body's checks, the update of the tenants row, the expiry set
+// an empty expiry set to today + 15 days (an expiry that is set is kept) and sent back, and which other endpoints look at the expiry. The SQL itself is not run here (no Postgres): the stand-in reads the same statements the servers send.
 const path = require("node:path");
 const http = require("node:http");
 const { pathToFileURL } = require("node:url");
@@ -37,32 +37,34 @@ function makeDatabase() {
       const t = [...tenants.values()].find((x) => x.host === params[0]);
       return t ? [{ name: t.name, instagram_url: t.instagram_url, tiktok_url: t.tiktok_url, address: t.address, phone: t.phone, email: t.email }] : [];
     }
-    if (/^SELECT key FROM tenants WHERE key = \$1 AND expiry IS NULL$/.test(text)) { // a shop that has never been registered
+    if (/^SELECT key FROM tenants WHERE key = \$1 AND \(expiry IS NULL OR expiry::date >= \(now\(\) AT TIME ZONE 'UTC'\)::date\)$/.test(text)) { // a shop that can register: not expired
       const t = tenants.get(params[0]);
-      return t && t.expiry === null ? [{ key: t.key }] : [];
+      return t && (t.expiry === null || t.expiry >= today) ? [{ key: t.key }] : [];
     }
     if (/^SELECT key FROM tenants WHERE key = \$1$/.test(text)) { // the check that only looks at existence (the photo endpoints)
       const t = tenants.get(params[0]);
       return t ? [{ key: t.key }] : [];
     }
     if (/^UPDATE tenants SET /.test(text)) {
-      if (!/, expiry = \(now\(\) AT TIME ZONE 'UTC'\)::date \+ 14 WHERE key = \$1 AND expiry IS NULL RETURNING /.test(text)) throw new Error("the UPDATE must set the expiry to today + 14 days, only while it is empty: " + text);
+      if (!/, expiry = COALESCE\(expiry, \(now\(\) AT TIME ZONE 'UTC'\)::date \+ 15\) WHERE key = \$1 AND \(expiry IS NULL OR expiry::date >= \(now\(\) AT TIME ZONE 'UTC'\)::date\) RETURNING /.test(text)) throw new Error("the UPDATE must keep the expiry it has or set today + 15 when it has none, only for a licence that is not expired: " + text);
       const assignments = /^UPDATE tenants SET (.*), expiry = /.exec(text)?.[1] ?? "";
       const sets = [...assignments.matchAll(/(\w+) = \$(\d+)/g)].map((m) => [m[1], params[Number(m[2]) - 1]]);
       if (!/RETURNING key, name, host, phone, email, address, instagram_url, tiktok_url, expiry$/.test(text)) throw new Error("unexpected UPDATE: " + text);
       const t = tenants.get(params[0]);
-      if (!t || t.expiry !== null) return []; // no such shop, or already registered: no row
+      if (state.refuseWrites || !t || (t.expiry !== null && t.expiry < today)) return []; // no such shop, an expired one, or a database policy that refuses the write: no row
       for (const [column, value] of sets) {
         if (column === "key") throw new Error("the key must never be updated");
         if (column === "host") throw new Error("the host must never be updated by /api/register");
+        if (column === "expiry") throw new Error("the expiry is only set by the COALESCE, never from the body");
       }
       for (const [column, value] of sets) t[column] = value;
-      t.expiry = shift(14);
+      if (t.expiry === null) t.expiry = shift(15); // COALESCE(expiry, today + 15): a day that is already there is kept
       return [{ ...t }];
     }
     throw new Error("unexpected statement: " + text);
   }
-  return { tenants, query, statements };
+  const state = { refuseWrites: false }; // true: the database refuses every update silently (a row-level-security policy that does not let the shop's login update its row)
+  return { tenants, query, statements, state };
 }
 
 const GOOD = { name: "Maison Clair", phone: "+213 550 00 00 00", email: "hello@maison-clair.example.com", address: "12 Rue Didouche Mourad, Algiers", instagramUrl: "https://instagram.com/maisonclair", tiktokUrl: "https://tiktok.com/@maisonclair" };
@@ -78,18 +80,28 @@ async function scenarios(label, call, db) {
   // the key
   const unknown = await call("nosuchkey", GOOD);
   const expired = await call("expiredkey", GOOD);
-  const registered = await call("activekey", GOOD);
   R.ck(unknown.status === 401 && unknown.body.code === "UNAUTHORIZED", "a key that does not exist: 401 UNAUTHORIZED");
   R.ck(expired.status === 401 && expired.body.code === "UNAUTHORIZED", "an expired key: 401 UNAUTHORIZED");
-  R.ck(registered.status === 401 && registered.body.code === "UNAUTHORIZED", "a key that was already registered (it has an expiry): 401 UNAUTHORIZED");
-  R.ck(JSON.stringify(unknown.body) === JSON.stringify(expired.body) && JSON.stringify(unknown.body) === JSON.stringify(registered.body), "and the answer is the same for all of them (nothing tells them apart)");
+  R.ck(JSON.stringify(unknown.body) === JSON.stringify(expired.body), "and the answer is the same for both (nothing tells them apart)");
   R.ck((await code(null, GOOD)) === "401 UNAUTHORIZED", "no Authorization header: 401 UNAUTHORIZED");
   R.ck((await code("bad key!", GOOD)) === "401 UNAUTHORIZED" && (await code("-startsbad", GOOD)) === "401 UNAUTHORIZED" && (await code("x".repeat(200), GOOD)) === "401 UNAUTHORIZED", "a key in the wrong format: 401 UNAUTHORIZED");
   R.ck(db.tenants.get("expiredkey").name === "Expired", "and a refused request changes nothing");
-  R.ck((await code("expiredkey", "not an object")) === "401 UNAUTHORIZED" && (await code("activekey", { bogus: 1 })) === "401 UNAUTHORIZED", "the key is checked before the body: a registered key with a bad body is still 401");
-  R.ck((await code("todaykey", { name: "Today shop" })) === "401 UNAUTHORIZED", "a key whose expiry is today is already registered: 401");
-  R.ck(db.tenants.get("activekey").name === "Active" && db.tenants.get("activekey").expiry === shift(30), "and a registered shop is not changed");
-  R.ck((await code("foreverkey", { name: "New shop" })) === "200", "a shop whose expiry is still empty registers");
+  R.ck((await code("expiredkey", "not an object")) === "401 UNAUTHORIZED" && (await code("nosuchkey", { bogus: 1 })) === "401 UNAUTHORIZED", "the key is checked before the body: an expired or unknown key with a bad body is still 401");
+
+  // an expiry that is set is KEPT, an empty one becomes today + 15
+  const registered = await call("activekey", { ...GOOD, name: "Active shop" });
+  R.ck(registered.status === 200 && registered.body.registered === true && registered.body.expiry === shift(30), "a shop that already has an expiry (30 days left) registers: 200, and the answer carries ITS day, not a new one", JSON.stringify(registered.body).slice(0, 150));
+  R.ck(db.tenants.get("activekey").expiry === shift(30) && db.tenants.get("activekey").name === "Active shop" && db.tenants.get("activekey").phone === GOOD.phone, "the expiry in the database is untouched, and the details were saved");
+  const lastDay = await call("todaykey", { name: "Today shop" });
+  R.ck(lastDay.status === 200 && lastDay.body.expiry === today && db.tenants.get("todaykey").expiry === today, "a licence that ends today still registers, and keeps its day (it is not extended)");
+  const fresh = await call("foreverkey", { name: "New shop" });
+  R.ck(fresh.status === 200 && fresh.body.expiry === shift(15) && db.tenants.get("foreverkey").expiry === shift(15), "a shop whose expiry is empty registers and gets today + 15 days", String(fresh.body.expiry));
+  const freshAgain = await call("foreverkey", { name: "New shop renamed" });
+  R.ck(freshAgain.status === 200 && freshAgain.body.expiry === shift(15) && db.tenants.get("foreverkey").name === "New shop renamed", "registering it again keeps that day (it is not pushed to another 15 days)");
+  db.state.refuseWrites = true;
+  const blocked = await call("activekey", { ...GOOD, name: "Blocked" });
+  db.state.refuseWrites = false;
+  R.ck(blocked.status === 500 && blocked.body.code === "NOT_UPDATED" && blocked.body.retry === "same-request" && db.tenants.get("activekey").name === "Active shop", "when the database refuses the write the answer is 500 NOT_UPDATED, not 401 (the key is fine: the app must not read it as a refusal)", JSON.stringify(blocked.body));
 
   // the body
   R.ck((await code("goodkey", GOOD, { rawBody: "{not json" })) === "400 BODY_NOT_JSON", "a body that is not JSON: 400 BODY_NOT_JSON");
@@ -119,10 +131,10 @@ async function scenarios(label, call, db) {
   R.ck(row.instagram_url === "https://instagram.com/maisonclair" && row.tiktok_url === "https://tiktok.com/@maisonclair", "including the social addresses");
   R.ck(row.host === "old.example.com", "the shop's host (set by hand) is never touched");
   R.ck(row.key === "goodkey", "the key is never changed by it");
-  R.ck(row.expiry === shift(14), "the expiry is set to today + 14 days", String(row.expiry));
-  R.ck(ok.body.tenant.name === "Maison Clair" && ok.body.tenant.instagramUrl === "https://instagram.com/maisonclair" && ok.body.expiry === shift(14), "the answer holds the shop as stored and its expiry day (today + 14)");
-  const again = await call("goodkey", GOOD);
-  R.ck(again.status === 401 && again.body.code === "UNAUTHORIZED" && row.expiry === shift(14), "registering the same key again: 401 UNAUTHORIZED (a shop registers once), nothing changed");
+  R.ck(row.expiry === shift(15), "the expiry (it was empty) is set to today + 15 days", String(row.expiry));
+  R.ck(ok.body.tenant.name === "Maison Clair" && ok.body.tenant.instagramUrl === "https://instagram.com/maisonclair" && ok.body.expiry === shift(15), "the answer holds the shop as stored and its expiry day (today + 15)");
+  const again = await call("goodkey", { ...GOOD, phone: "+213 661 11 22 33" });
+  R.ck(again.status === 200 && again.body.expiry === shift(15) && row.expiry === shift(15) && row.phone === "+213 661 11 22 33", "registering the same key again: 200, the details are updated and the expiry stays the same day");
   row.expiry = null; // (the shop's licence is reset in the database)
   const partial = await call("goodkey", { name: "Renamed", phone: null, email: "" });
   R.ck(partial.status === 200 && row.name === "Renamed" && row.phone === null && row.email === null, "null or \"\" clears an optional field");
@@ -140,8 +152,8 @@ async function scenarios(label, call, db) {
   R.ck(!("host" in core.validateRegisterBody(GOOD).values) && core.validateRegisterBody({ ...GOOD, host: "x.example.com" }).failure?.body.code === "UNKNOWN_FIELD", "validateRegisterBody never produces a host column, and refuses a host in the body");
   R.ck(!("key" in core.validateRegisterBody(GOOD).values), "and never produces a key column");
   const update = core.buildRegisterUpdate("k", { name: "A", phone: "0550 00 00 00" });
-  R.ck(update.text === "UPDATE tenants SET name = $2, phone = $3, expiry = (now() AT TIME ZONE 'UTC')::date + 14 WHERE key = $1 AND expiry IS NULL RETURNING key, name, host, phone, email, address, instagram_url, tiktok_url, expiry" && update.params.join() === "k,A,0550 00 00 00", "buildRegisterUpdate sets the columns sent (values as parameters, never in the text) and the expiry to today + 14, only while the expiry is empty");
-  R.ck(core.REGISTER_DAYS === 14, "a licence lasts 14 days from the day the shop registers");
+  R.ck(update.text === "UPDATE tenants SET name = $2, phone = $3, expiry = COALESCE(expiry, (now() AT TIME ZONE 'UTC')::date + 15) WHERE key = $1 AND (expiry IS NULL OR expiry::date >= (now() AT TIME ZONE 'UTC')::date) RETURNING key, name, host, phone, email, address, instagram_url, tiktok_url, expiry" && update.params.join() === "k,A,0550 00 00 00", "buildRegisterUpdate sets the columns sent (values as parameters, never in the text) and keeps the expiry it has, or sets today + 15 when there is none, only for a licence that is not expired", update.text);
+  R.ck(core.REGISTER_DAYS === 15, "a new shop's licence lasts 15 days from the day it registers");
 
   // ---- the Cloudflare Worker
   const { createWorker } = await import(url("cloudflare", "src", "index.js"));
@@ -217,7 +229,7 @@ async function scenarios(label, call, db) {
     R.ck(r.status === 403 && r.body.code === "LICENSE_EXPIRED", `an expired shop: GET ${pathname.split("?")[0]} -> 403 LICENSE_EXPIRED`, JSON.stringify(r.body));
   }
   const live = await read("active.example.com", "/api/infos");
-  R.ck(live.status === 200 && live.body.name === "Active", "a shop whose licence is running: its site is served");
+  R.ck(live.status === 200 && live.body.name === "Active shop", "a shop whose licence is running: its site is served");
   R.ck((await read("today.example.com", "/api/infos")).status === 200, "a shop whose last day is today: still served");
   R.ck((await read("never.example.com", "/api/infos")).status === 200, "a shop with no expiry set yet (not registered): still served, its site does not go dark");
   R.ck((await read("nobody.example.com", "/api/infos")).status === 404, "a host no shop uses: the usual 404");
@@ -228,7 +240,7 @@ async function scenarios(label, call, db) {
   const backendDb = makeDatabase();
   const app = express();
   app.set("trust proxy", true); // (each call below comes from its own made-up address: the backend slows an address down after ten wrong keys)
-  app.use("/api/register", createRegisterRouter({ findUnregisteredTenant: async (key) => (await backendDb.query("SELECT key FROM tenants WHERE key = $1 AND expiry IS NULL", [key]))[0] ?? null, query: backendDb.query }));
+  app.use("/api/register", createRegisterRouter({ findRegistrableTenant: async (key) => (await backendDb.query("SELECT key FROM tenants WHERE key = $1 AND (expiry IS NULL OR expiry::date >= (now() AT TIME ZONE 'UTC')::date)", [key]))[0] ?? null, query: backendDb.query }));
   const { createExpiryRouter } = await import(url("backend", "src", "lib", "expiryApi.js"));
   app.use("/api/expiry", createExpiryRouter({ findActiveTenant: async (key) => (await backendDb.query("SELECT key, expiry FROM tenants WHERE key = $1 AND expiry IS NOT NULL AND expiry::date >= (now() AT TIME ZONE 'UTC')::date", [key]))[0] ?? null }));
   const server = http.createServer(app);

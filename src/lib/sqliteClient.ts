@@ -4,18 +4,10 @@ import fs from "node:fs";
 import path from "node:path";
 import { PrismaBetterSqlite3 } from "@prisma/adapter-better-sqlite3";
 import { PrismaClient } from "../generated/sqlite-client";
-import { appDataDir } from "./appData";
+import { localDbPath } from "./appData";
 
-function resolveDbPath(): string {
-  // SQLITE_DATABASE_URL overrides the default — useful for tests/dev without touching the real
-  // app data folder. Otherwise the db lives under the OS's per-app data directory, e.g. on
-  // Windows: %APPDATA%/OptiPro/local.db.
-  const override = process.env.SQLITE_DATABASE_URL;
-  if (override) {
-    return override.startsWith("file:") ? override.slice("file:".length) : override;
-  }
-  return path.join(appDataDir(), "local.db");
-}
+// (SQLITE_DATABASE_URL overrides the default — useful for tests/dev without touching the real app data folder; see appData.ts)
+const resolveDbPath = localDbPath;
 
 /**
  * The raw CREATE TABLE statements for prisma/sqlite/schema.prisma. `npm run build` generates them
@@ -78,7 +70,22 @@ const ADDED_COLUMNS: { table: string; column: string; definition: string }[] = [
   { table: "orders", column: "fitting_height_left", definition: "REAL" },
   ...["shop_name", "instagram_url", "tiktok_url", "phone", "email", "address"].map((column) => ({ table: "license_expiry", column, definition: "TEXT" })),
   { table: "license_expiry", column: "synced", definition: "BOOLEAN NOT NULL DEFAULT true" },
+  { table: "order_items", column: "unit_cost_cents", definition: "INTEGER" },
+  { table: "supplier_order_items", column: "used", definition: "BOOLEAN NOT NULL DEFAULT false" },
+  { table: "orders", column: "tracking_code", definition: "INTEGER" },
 ];
+
+/** Columns an older version made that are no longer used (they would refuse a row that does not fill them). Dropped once, when the table still has them. */
+const OBSOLETE_COLUMNS: { table: string; column: string }[] = [
+  { table: "license_expiry", column: "expires_at" }, // the licence's end day is no longer kept here: the server alone knows it
+];
+
+function dropObsoleteColumns(db: Database.Database): void {
+  for (const { table, column } of OBSOLETE_COLUMNS) {
+    const existing = db.prepare(`PRAGMA table_info("${table}")`).all() as { name: string }[];
+    if (existing.some((c) => c.name === column)) db.exec(`ALTER TABLE "${table}" DROP COLUMN "${column}"`);
+  }
+}
 
 function addMissingColumns(db: Database.Database): void {
   for (const { table, column, definition } of ADDED_COLUMNS) {
@@ -195,7 +202,7 @@ function rebuildTablesWithChangedForeignKeys(db: Database.Database, initSql: str
  * The tables whose rows are never deleted: the money trail and its numbering. The server's login has no DELETE on them either; here
  * a trigger refuses it, so nothing (a screen, a script, a mistake) can remove such a row from this computer. Cancel or void them instead.
  */
-const NEVER_DELETED = ["orders", "order_items", "payments", "invoices", "invoice_items", "number_sequences"];
+const NEVER_DELETED = ["orders", "order_items", "supplier_orders", "supplier_order_items", "payments", "invoices", "invoice_items", "number_sequences"];
 
 /**
  * A prescription that an order uses is a record of what was ordered: its clinical columns cannot be changed. (Only the sync mark and the
@@ -215,6 +222,32 @@ function protectFromDeletes(db: Database.Database): void {
     `CREATE TRIGGER IF NOT EXISTS "prescriptions_used_not_changed" BEFORE UPDATE OF ${PRESCRIPTION_RECORD_COLUMNS.map((c) => `"${c}"`).join(", ")} ON "prescriptions" ` +
       `WHEN EXISTS (SELECT 1 FROM "orders" WHERE "prescription_id" = OLD."id") BEGIN SELECT RAISE(ABORT, 'A prescription that an order uses cannot be changed: create a new one instead.'); END;`,
   );
+}
+
+/**
+ * The oldest line of a supplier order that is waiting for a product (used = 0, and its order not cancelled): a frame (its column is frame_id) or an accessory
+ * (accessory_id). Used three times by each trigger below.
+ */
+const waitingLine = (column: "frame_id" | "accessory_id") => `SELECT i."id" AS id, i."quantity" AS quantity, i."unit_cost_cents" AS cost FROM "supplier_order_items" i JOIN "supplier_orders" o ON o."id" = i."supplier_order_id"
+  WHERE i."${column}" = NEW."id" AND i."tenant_key" = NEW."tenant_key" AND i."used" = 0 AND o."status" <> 'cancelled' ORDER BY i."created_at" ASC, i."id" ASC LIMIT 1`;
+
+/**
+ * WHENEVER a product's stock BECOMES 0 (a frame's or an accessory's), by any route (a customer's order, cancelling or reopening one, the stock typed in the product's
+ * form, any other code), the oldest supplier-order line waiting for that product becomes its stock and its cost, and is marked used. It is a trigger, not code in one
+ * service, so no route can forget it. The product and the line are marked unsent so the server gets them. Nothing happens when the product has no waiting line.
+ * (SQLite does not run a trigger from a trigger by default, and the product leaves 0 anyway, so this cannot repeat.)
+ */
+function applyWaitingSupplierLines(db: Database.Database): void {
+  for (const [table, column] of [["frames", "frame_id"], ["accessories", "accessory_id"]] as const) {
+    const waiting = waitingLine(column);
+    db.exec(`DROP TRIGGER IF EXISTS "${table}_stock_zero_applies_waiting_line"`);
+    db.exec(`CREATE TRIGGER "${table}_stock_zero_applies_waiting_line" AFTER UPDATE OF "stock" ON "${table}"
+    WHEN NEW."stock" = 0 AND OLD."stock" <> 0 AND EXISTS (${waiting})
+    BEGIN
+      UPDATE "${table}" SET "stock" = (SELECT quantity FROM (${waiting})), "cost_price" = (SELECT cost FROM (${waiting})) / 100.0, "synced" = 0 WHERE "id" = NEW."id";
+      UPDATE "supplier_order_items" SET "used" = 1, "synced" = 0 WHERE "id" = (SELECT id FROM (${waiting}));
+    END`);
+  }
 }
 
 /**
@@ -242,7 +275,9 @@ function ensureDatabaseExists(dbPath: string): void {
     addMissingColumns(db);
     // A rebuilt table loses its indexes with the old table: creating the missing ones again (it is idempotent) puts them back.
     if (rebuildTablesWithChangedForeignKeys(db, initSql).length > 0) db.exec(idempotentSql);
+    dropObsoleteColumns(db);
     protectFromDeletes(db);
+    applyWaitingSupplierLines(db);
   } finally {
     db.close();
   }

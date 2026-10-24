@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <!-- The page only ever loads its own files: no network, no inline script or style. -->
   <meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'self'; style-src 'self'; img-src 'self' data: file: https: http://localhost:* http://127.0.0.1:*; font-src 'self'">
-  <title>Dashboard · Maison Clair</title>
+  <title>OptiPro</title>
   <link rel="stylesheet" href="styles/fonts.css">
   <link rel="stylesheet" href="styles/tokens.css">
   <link rel="stylesheet" href="styles/global.css">
@@ -21,6 +21,7 @@
   <link rel="stylesheet" href="styles/suppliers.css">
   <link rel="stylesheet" href="styles/settings.css">
   <link rel="stylesheet" href="styles/sales.css">
+  <link rel="stylesheet" href="styles/reports.css">
   <link rel="stylesheet" href="styles/productDetails.css">
 </head>
 <body>
@@ -67,7 +68,7 @@
       <div class="sidebar__brand">
         <span class="brand-mark" aria-hidden="true"><svg class="icon"><use href="#i-lens"/></svg></span>
         <span class="brand-text">
-          <span class="brand-name">Maison Clair</span>
+          <span class="brand-name" id="shop-brand-name">OptiPro</span>
           <span class="brand-caption">Optical Management</span>
         </span>
       </div>
@@ -125,6 +126,12 @@
                 <span class="nav-item__label">Suppliers</span>
               </a>
             </li>
+            <li>
+              <a class="nav-item" href="#supplier-orders" data-page="supplier-orders" data-eyebrow="Store">
+                <svg class="icon" aria-hidden="true"><use href="#i-inventory"/></svg>
+                <span class="nav-item__label">Supplier orders</span>
+              </a>
+            </li>
           </ul>
         </div>
 
@@ -168,13 +175,6 @@
         </div>
 
         <div class="topbar__actions">
-          <form class="search" role="search">
-            <svg class="icon" aria-hidden="true"><use href="#i-search"/></svg>
-            <input class="search__input" type="search" name="q" placeholder="Search" aria-label="Search" autocomplete="off">
-          </form>
-
-          <span class="topbar__separator" aria-hidden="true"></span>
-
           <button class="icon-button" type="button" aria-label="Notifications">
             <svg class="icon" aria-hidden="true"><use href="#i-bell"/></svg>
           </button>
@@ -230,11 +230,15 @@
   <script src="pages/productDetails.js"></script>
   <script src="pages/lenses.js"></script>
   <script src="pages/suppliers.js"></script>
+  <script src="pages/supplierOrders.js"></script>
+  <script src="pages/supplierOrderForm.js"></script>
   <script src="pages/settings.js"></script>
+  <script src="pages/labSendDialog.js"></script>
   <script src="pages/sales.js"></script>
   <script src="pages/payments.js"></script>
   <script src="pages/orderDetails.js"></script>
   <!-- last: when a page that was open is cleared on a hash change, the dashboard builds after it -->
   <script src="pages/dashboard.js"></script>
+  <script src="pages/reports.js"></script>
 </body>
 </html>

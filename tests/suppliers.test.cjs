@@ -14,9 +14,10 @@ R.ck(good({ name: "  Essilor   Algérie " })?.name === "Essilor Algérie", "spac
 R.ck(bad({ name: "x".repeat(121) })?.name && good({ name: "x".repeat(120) }) !== null, "a name is at most 120 characters");
 const only = good({ name: "Lab" });
 R.ck(only.kinds === "" && only.isActive === true && only.phone === null && only.email === null && only.notes === null && only.contactName === null && only.address === null, "everything else is optional: a name alone is a supplier (active, supplying nothing in particular)");
-R.ck(good({ name: "A", kinds: ["lenses", "lab", "lab"] })?.kinds === "lab,lenses" && good({ name: "A", kinds: "frames, accessories" })?.kinds === "frames,accessories", "kinds: a list or a comma-separated text, in a fixed order, no repeats");
+R.ck(good({ name: "A", kinds: ["accessories", "lenses", "lenses"] })?.kinds === "lenses,accessories" && good({ name: "A", kinds: "frames, accessories" })?.kinds === "frames,accessories", "kinds: a list or a comma-separated text, in a fixed order, no repeats");
+R.ck(good({ name: "A", kinds: ["lab"] })?.kinds === "lenses" && good({ name: "A", kinds: ["lab", "lenses"] })?.kinds === "lenses", "a lab is a supplier of lenses: the old kind \"lab\" means lenses, and ticking both is one");
 R.ck(bad({ name: "A", kinds: ["lenses", "tools"] })?.kinds && bad({ name: "A", kinds: 5 })?.kinds, "an unknown kind is refused");
-R.ck(kindsOf("lenses,lab,nonsense").join() === "lab,lenses" && kindsOf(null).length === 0 && SUPPLIER_KINDS.length === 5, "kindsOf reads a stored list");
+R.ck(kindsOf("lenses,lab,nonsense,frames").join() === "lenses,frames" && kindsOf("lab").join() === "lenses" && kindsOf(null).length === 0 && SUPPLIER_KINDS.length === 4, "kindsOf reads a stored list (an old \"lab\" counts as lenses)");
 R.ck(good({ name: "A", phone: "+213 (0) 550-12.34/56" })?.phone === "+213 (0) 550-12.34/56", "a phone number can have digits, spaces and + - ( ) . /");
 R.ck(bad({ name: "A", phone: "call me" })?.phone && bad({ name: "A", phone: "12345" })?.phone && bad({ name: "A", phone: "0".repeat(31) })?.phone, "letters, fewer than 6 digits, or more than 30 characters are refused");
 R.ck(good({ name: "A", email: "contact@essilor.dz" })?.email === "contact@essilor.dz" && bad({ name: "A", email: "contact@" })?.email && bad({ name: "A", email: "a b@c.dz" })?.email, "an email must look like one");
@@ -72,7 +73,7 @@ const out = runScript(
 const r = JSON.parse(/RESULT (.*)/.exec(out)?.[1] ?? "{}");
 
 R.section("the service");
-R.ck(r.created?.status === "created" && r.created?.name === "Essilor Algérie" && r.created?.kinds === "lab,lenses" && r.created?.active === true && r.created?.tenant === "t1", "a supplier is created in this shop", JSON.stringify(r.created));
+R.ck(r.created?.status === "created" && r.created?.name === "Essilor Algérie" && r.created?.kinds === "lenses" && r.created?.active === true && r.created?.tenant === "t1", "a supplier is created in this shop", JSON.stringify(r.created));
 R.ck(r.created?.synced === false && r.created?.sent === false, "and waits for the server like any row (not reachable here)");
 R.ck(r.bare === "created", "a name alone is enough");
 R.ck(/already have a supplier/.test(r.dup?.[0] ?? "") && r.dup?.[1] === "invalid", "the same name again (other capitals, extra spaces) is refused", JSON.stringify(r.dup));

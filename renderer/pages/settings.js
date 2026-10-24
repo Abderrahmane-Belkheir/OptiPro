@@ -160,6 +160,7 @@
         say("Nothing to change: type a new value in a box first.");
       } else {
         state.info = result.info;
+        window.refreshShopName?.(); // the sidebar and the window title show the new name
         for (const [name] of FIELDS) refs.inputs[name].value = ""; // the boxes show what is saved as their placeholder again
         if (result.sentToServer) toast("Your shop information was saved.");
         else toast("Saved on this computer. The server could not take it now: it will be sent automatically.", "error");

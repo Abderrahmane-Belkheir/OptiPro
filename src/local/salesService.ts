@@ -7,6 +7,13 @@ import { LocalDbError } from "./errors";
  *
  * Money rules (the same as the dashboard's): an order owes its total minus what was paid on it, never below 0; a cancelled order owes nothing and is
  * left out of the totals. The totals are over the orders the search matches and the status filter keeps.
+ *
+ * NET PROFIT of those orders = what the customers pay (the final price of each order) minus what the items COST the shop on the day of the sale (the cost saved on
+ * each order line when the order was placed, never today's cost). It is counted only for the orders whose every line has a known cost: an order with a line
+ * whose cost was not known has an unknown profit, and is counted apart (withoutCostOrders) instead of being passed off as pure profit.
+ *
+ * A second figure, over the very same orders: the PROFIT COLLECTED = what the customers have really paid on them (their payments) minus what they cost. It is
+ * negative while the payments have not yet covered the costs (a deposit alone usually does not) and reaches the net profit when the orders are paid up.
  */
 
 export const ORDER_STATUSES = ["confirmed", "at_lab", "ready", "delivered", "cancelled"] as const;
@@ -39,7 +46,19 @@ export interface SalesList {
   /** How many orders each status has among the orders the search matches (so the filter chips can show them), and in all. */
   counts: Record<OrderStatus | "all", number>;
   /** Over the orders shown by the status filter (cancelled ones left out): how many, what they are worth, what was paid, what is left to pay. */
-  totals: { orders: number; valueCents: number; paidCents: number; remainingCents: number };
+  totals: {
+    orders: number;
+    valueCents: number;
+    paidCents: number;
+    remainingCents: number;
+    /** Net profit over the orders whose cost is known (profitOrders of them). */
+    profitCents: number;
+    /** The payments received on those same orders minus their costs (can be negative). */
+    collectedProfitCents: number;
+    profitOrders: number;
+    /** Orders (not cancelled) left out of the profit because the cost of a line was not known. */
+    withoutCostOrders: number;
+  };
   /** How many orders the filter matches, and how many of them are in `rows` (the list is cut at the limit). */
   matching: number;
   shown: number;
@@ -58,6 +77,23 @@ export function periodFrom(filter: { year?: number; month?: number; day?: number
   const from = new Date(year, month != null ? month - 1 : 0, day ?? 1);
   const to = day != null ? new Date(year, month! - 1, day + 1) : month != null ? new Date(year, month, 1) : new Date(year + 1, 0, 1);
   return { gte: from, lt: to };
+}
+
+/**
+ * What each order's lines cost, from the cost saved on every line: order id -> the sum, or null when any line has no known cost. An order with no lines is not
+ * in the map (its profit is unknown). Asked in chunks, so a long list of orders never exceeds the database's limit on parameters.
+ */
+async function costsOf(tenantKey: string, orderIds: string[]): Promise<Map<string, number | null>> {
+  const costs = new Map<string, number | null>();
+  for (let i = 0; i < orderIds.length; i += 400) {
+    const items = await sqlitePrisma.orderItem.findMany({ where: { tenantKey, orderId: { in: orderIds.slice(i, i + 400) } }, select: { orderId: true, quantity: true, unitCostCents: true } });
+    for (const item of items) {
+      const so_far = costs.get(item.orderId);
+      if (so_far === null) continue; // already unknown
+      costs.set(item.orderId, item.unitCostCents === null ? null : (so_far ?? 0) + item.unitCostCents * item.quantity);
+    }
+  }
+  return costs;
 }
 
 const startOfToday = (): Date => {
@@ -98,14 +134,22 @@ export const localSalesService = {
     for (const o of orders) if ((ORDER_STATUSES as readonly string[]).includes(o.status)) counts[o.status as OrderStatus]++;
 
     const kept = status === "all" ? orders : orders.filter((o) => o.status === status);
-    const totals = { orders: 0, valueCents: 0, paidCents: 0, remainingCents: 0 };
-    for (const o of kept) {
-      if (o.status === "cancelled") continue;
+    const totals = { orders: 0, valueCents: 0, paidCents: 0, remainingCents: 0, profitCents: 0, collectedProfitCents: 0, profitOrders: 0, withoutCostOrders: 0 };
+    const counted = kept.filter((o) => o.status !== "cancelled");
+    const costOf = await costsOf(tenantKey, counted.map((o) => o.id));
+    for (const o of counted) {
       const p = paid.get(o.id) ?? 0;
       totals.orders++;
       totals.valueCents += o.totalCents;
       totals.paidCents += p;
       totals.remainingCents += Math.max(0, o.totalCents - p);
+      const cost = costOf.get(o.id);
+      if (cost === undefined || cost === null) totals.withoutCostOrders++;
+      else {
+        totals.profitCents += o.totalCents - cost;
+        totals.collectedProfitCents += p - cost;
+        totals.profitOrders++;
+      }
     }
 
     const page = kept.slice(0, limit);

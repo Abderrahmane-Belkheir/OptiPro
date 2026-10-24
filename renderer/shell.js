@@ -4,7 +4,11 @@
 (() => {
   "use strict";
 
-  const STORE_NAME = "Maison Clair";
+  // What the sidebar and the window title call the shop: the name saved with the licence (the one typed when the shop was activated, or changed in
+  // the Settings). Until it is known, or when there is none, the app's own name.
+  const DEFAULT_NAME = "OptiPro";
+  let storeName = DEFAULT_NAME;
+  let pageLabel = "";
   const SIDEBAR_KEY = "optipro.sidebar";
   const DEFAULT_PAGE = "dashboard";
 
@@ -27,11 +31,30 @@
     const label = active.querySelector(".nav-item__label").textContent.trim();
     pageTitle.textContent = label;
     pageEyebrow.textContent = active.dataset.eyebrow; // the navigation group the page belongs to
-    document.title = `${label} · ${STORE_NAME}`;
+    pageLabel = label;
+    document.title = `${label} · ${storeName}`;
   }
+
+  /** Reads the shop's name again and puts it in the sidebar and in the window title (called at start and after the Settings saved a new name). */
+  async function refreshShopName() {
+    try {
+      const info = await window.electronAPI?.shopInfo?.get();
+      storeName = info?.name || DEFAULT_NAME;
+    } catch {
+      storeName = DEFAULT_NAME;
+    }
+    const brand = document.getElementById("shop-brand-name");
+    if (brand) {
+      brand.textContent = storeName;
+      brand.title = storeName; // (a long name is cut in the sidebar: hovering shows all of it)
+    }
+    if (pageLabel) document.title = `${pageLabel} · ${storeName}`;
+  }
+  window.refreshShopName = refreshShopName;
 
   window.addEventListener("hashchange", showPage);
   showPage();
+  void refreshShopName();
 
   // ---- Sidebar -------------------------------------------------------------------------------
   // Expanded or icon-only. The choice is remembered; below 1024 px wide the sidebar is always
@@ -84,10 +107,6 @@
 
   narrow.addEventListener("change", renderSidebar);
   renderSidebar();
-
-  // ---- Search --------------------------------------------------------------------------------
-  // Visual only for now: submitting does nothing.
-  document.querySelector(".search").addEventListener("submit", (event) => event.preventDefault());
 
   // ---- Profile menu --------------------------------------------------------------------------
 
@@ -178,4 +197,14 @@
 
   window.addEventListener("hashchange", showSubmenus);
   showSubmenus();
+
+  // ---- Rows that open ----------------------------------------------------------------------------
+  // A table row with a data-href ("orders/<id>", "customers/<id>") opens that page when it is clicked anywhere. A link, a button or a field inside the row keeps its own
+  // click (the row's own link is there for the keyboard), and selecting text in the row is not a click.
+  document.addEventListener("click", (event) => {
+    const row = event.target.closest?.("tr[data-href]");
+    if (!row || event.target.closest('a, button, input, select, textarea, label, summary')) return;
+    if (String(window.getSelection?.() ?? "") !== "") return;
+    location.hash = row.dataset.href;
+  });
 })();

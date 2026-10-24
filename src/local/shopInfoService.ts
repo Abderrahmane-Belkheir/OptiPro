@@ -7,7 +7,7 @@ import { SHOP_INFO_FIELDS, validateShopInfoForm, type ShopInfoField, type ShopIn
 import { syncFlag } from "./sync";
 
 /**
- * The shop's own information (name, phone, email, address, Instagram, TikTok), kept in the local licence row (table license_expiry) next to the expiry day.
+ * The shop's own information (name, phone, email, address, Instagram, TikTok), kept in the local shop row (table license_expiry, which holds no date any more).
  * The settings page edits it; the server's copy is the shop's row of `tenants`, updated with POST <server.url>/api/infos (the tenant key as the Bearer token).
  *
  * The row has a `synced` flag, like the other tables:
@@ -49,7 +49,7 @@ export type InfosOutcome = { ok: true } | { ok: false; reason: string; unreachab
 /**
  * POST <server.url>/api/infos with the tenant key and `body` (the six fields, a null where there is nothing to send). Never throws.
  *   200 { updated: true }   -> ok
- *   401 UNAUTHORIZED        -> the server turned the shop away: an old expiry day is saved and the app closes (licenseGuard.ts), like every other call
+ *   401 UNAUTHORIZED        -> the server turned the shop away: the settings file is removed and the app closes (licenseGuard.ts), like every other call
  *   anything else           -> not ok, with the reason in words (no connection, a refusal of the values, a failing server...)
  */
 export async function postInfos(body: Record<ShopInfoField, string | null>, timeoutMs: number = SHOP_INFO_TIMEOUT_MS): Promise<InfosOutcome> {

@@ -45,10 +45,12 @@ const out = runScript(
   await p.category.create({ data: { id: 1, name: 'Optical Frames', imageUrl: 'u' } }).catch(() => {});
   const frame = (id, name, price) => p.frame.create({ data: { id, name, brandId: 'b1', categoryId: 1, price, currency: 'DZD', stock: 3, ...S('t1') } });
   await frame('f1', 'Aviator', 18500);
+  await p.frame.update({ where: { id: 'f1' }, data: { costPrice: 12000 } });
   await frame('f2', 'No price', null);
-  await p.accessory.create({ data: { id: 'a1', name: 'Hard case', description: 'case', price: 1200.5, currency: 'DZD', stock: 9, ...S('t1') } });
+  await p.accessory.create({ data: { id: 'a1', name: 'Hard case', description: 'case', price: 1200.5, costPrice: 800.25, currency: 'DZD', stock: 9, ...S('t1') } });
   const lens = (id, name, over) => p.lens.create({ data: { id, name, brand: 'Essilor', priceCents: 500000, ...over, ...S(over?.tenantKey ?? 't1') } });
-  await lens('l1', 'Stock 1.5', {});
+  await lens('l1', 'Stock 1.5', { costCents: 300000 });
+  await lens('l6', 'No cost entered', { priceCents: 200000 });
   await lens('l2', 'Retired', { isActive: false });
   await p.lens.create({ data: { id: 'l3', name: 'Other shop lens', priceCents: 100, ...S('t2') } });
 
@@ -130,6 +132,47 @@ const out = runScript(
   // the order page reads what was placed
   const details = await L.localOrderDetailsService.get(first.order.id);
   out.details = { total: details.totalCents, paid: details.paidCents, left: details.remainingCents, items: details.items.length, canPay: details.canPay };
+  // the COST of each line is copied on the day of the sale; a later change of a product's cost changes nothing
+  const costsOf = async (orderId) => (await p.orderItem.findMany({ where: { orderId }, orderBy: { kind: 'asc' } })).map((i) => i.kind + ':' + i.unitCostCents).join(',');
+  out.costs = { full: await costsOf(first.order.id) };
+  const costOrder = await place({ customerId: 'c1', prescriptionId: 'rx1', frameId: 'f1', accessoryId: 'a1', lensId: 'l1' });
+  out.costs.fresh = await costsOf(costOrder.order.id);
+  await p.frame.update({ where: { id: 'f1' }, data: { costPrice: 99999 } });
+  await p.lens.update({ where: { id: 'l1' }, data: { costCents: 888888 } });
+  await p.accessory.update({ where: { id: 'a1' }, data: { costPrice: 5000 } });
+  out.costs.afterChange = await costsOf(costOrder.order.id);
+  out.costs.next = await costsOf((await place({ customerId: 'c1', prescriptionId: 'rx1', frameId: 'f1', accessoryId: 'a1', lensId: 'l1' })).order.id);
+  out.costs.noCostLens = await costsOf((await place({ customerId: 'c1', prescriptionId: 'rx1', lensId: 'l6' })).order.id);
+  out.costs.typedLens = await costsOf((await place({ customerId: 'c1', prescriptionId: 'rx1', lensId: 'l6', lensCost: '1500,50' })).order.id);
+  out.costs.typedOverCatalogue = await costsOf((await place({ customerId: 'c1', prescriptionId: 'rx1', lensId: 'l1', lensCost: 100 })).order.id);
+  out.costs.typedZero = await costsOf((await place({ customerId: 'c1', prescriptionId: 'rx1', lensId: 'l6', lensCost: '0' })).order.id);
+  out.costs.described = await costsOf((await place({ customerId: 'c1', lensDescription: 'Progressive', lensPrice: 14000 })).order.id);
+  out.costs.describedTyped = await costsOf((await place({ customerId: 'c1', lensDescription: 'Progressive', lensPrice: 14000, lensCost: 9000 })).order.id);
+  await p.frame.update({ where: { id: 'f1' }, data: { costPrice: null } });
+  out.costs.noCostFrame = await costsOf((await place({ customerId: 'c1', frameId: 'f1' })).order.id);
+
+  // the FINAL PRICE: lower is a discount; the lines keep the prices they were sold at
+  const money = async (orderId) => { const o = await p.order.findFirst({ where: { id: orderId } }); return [o.subtotalCents, o.discountCents, o.totalCents].join('/'); };
+  const lineSum = async (orderId) => (await p.orderItem.findMany({ where: { orderId } })).reduce((s, i) => s + i.totalCents, 0);
+  const none = await place({ customerId: 'c1', prescriptionId: 'rx1', frameId: 'f1', lensId: 'l1' });
+  out.final = { none: await money(none.order.id) };
+  const S0 = none.totalCents; // what the items add up to (in centimes); the prices below are made from it
+  const dzd = (cents) => (cents / 100).toFixed(2);
+  out.final.S0 = S0;
+  const lower = await place({ customerId: 'c1', prescriptionId: 'rx1', frameId: 'f1', lensId: 'l1', finalPrice: dzd(S0 - 100000) });
+  out.final.lower = await money(lower.order.id);
+  out.final.lowerLines = await lineSum(lower.order.id);
+  out.final.lowerAnswer = lower.totalCents;
+  out.final.equal = await money((await place({ customerId: 'c1', prescriptionId: 'rx1', frameId: 'f1', lensId: 'l1', finalPrice: dzd(S0) })).order.id);
+  out.final.zero = await money((await place({ customerId: 'c1', frameId: 'f1', finalPrice: '0' })).order.id);
+  out.final.higher = (await place({ customerId: 'c1', prescriptionId: 'rx1', frameId: 'f1', lensId: 'l1', finalPrice: dzd(S0 + 1) })).errors?.finalPrice;
+  out.final.bad = [(await place({ customerId: 'c1', frameId: 'f1', finalPrice: 'abc' })).errors?.finalPrice, (await place({ customerId: 'c1', frameId: 'f1', finalPrice: -5 })).errors?.finalPrice];
+  const depositOverFinal = await place({ customerId: 'c1', prescriptionId: 'rx1', frameId: 'f1', lensId: 'l1', finalPrice: dzd(S0 - 100000), deposit: dzd(S0 - 100000 + 1) });
+  out.final.depositOverFinal = depositOverFinal.errors?.deposit;
+  const paidUp = await place({ customerId: 'c1', prescriptionId: 'rx1', frameId: 'f1', lensId: 'l1', finalPrice: dzd(S0 - 100000), deposit: dzd(S0 - 100000) });
+  out.final.paidUp = paidUp.status + ':' + paidUp.totalCents + '/' + paidUp.depositCents;
+  const paidUpDetails = await L.localOrderDetailsService.get(paidUp.order.id);
+  out.final.details = { total: paidUpDetails.totalCents, discount: paidUpDetails.discountCents, left: paidUpDetails.remainingCents };
   out.api = require(ROOT + '/dist/ipc/channels.js').API_METHODS.orderPlacement;
   process.stdout.write('RESULT ' + JSON.stringify(out) + '\\n', () => process.exit(0));
 `,
@@ -171,6 +214,27 @@ for (const [name, field] of Object.entries(want)) R.ck(r.refused?.[name] === fie
 R.ck(r.garbage?.every((s) => s === "invalid"), "null, undefined, a number, text or a list are refused as a draft");
 R.ck(r.unchanged === true, "no order, line, payment or number was created by any refusal", JSON.stringify(r.countsAfter));
 R.ck(r.exact === "placed:9999900/9999900", "a deposit equal to the total is fine (a paid-up order)", r.exact);
+
+R.section("the cost of each line is copied on the day of the sale");
+R.ck(r.costs?.full === "accessory:80025,frame:1200000,lens:300000", "the frame's, the accessory's and the lens's cost are saved on their lines (12 000, 800.25 and 3 000 in centimes)", r.costs?.full);
+R.ck(r.costs?.afterChange === r.costs?.fresh && r.costs?.fresh === "accessory:80025,frame:1200000,lens:300000", "changing the products' costs afterwards changes nothing in the order already made", `${r.costs?.fresh} -> ${r.costs?.afterChange}`);
+R.ck(r.costs?.next === "accessory:500000,frame:9999900,lens:888888", "and the next order takes the new costs", r.costs?.next);
+R.ck(r.costs?.noCostLens === "lens:null", "a lens whose catalogue cost was never entered (0) has no known cost: null, not 0", r.costs?.noCostLens);
+R.ck(r.costs?.typedLens === "lens:150050" && r.costs?.typedOverCatalogue === "lens:10000", "a lens cost typed with the order is used (it beats the catalogue's)", `${r.costs?.typedLens} ${r.costs?.typedOverCatalogue}`);
+R.ck(r.costs?.typedZero === "lens:0", "a cost typed as 0 is a known cost of 0, not an unknown one");
+R.ck(r.costs?.described === "lens:null" && r.costs?.describedTyped === "lens:900000", "a lens described in words has no known cost unless one is typed");
+R.ck(r.costs?.noCostFrame === "frame:null", "a frame with no cost entered has a null cost");
+
+R.section("the final price");
+R.ck(/^(\d+)\/0\/\1$/.test(r.final?.none ?? ""), "with no final price the total is what the items add up to, with no discount", r.final?.none);
+const [sub, disc, tot] = (r.final?.lower ?? "0/0/0").split("/").map(Number);
+R.ck(sub === r.final?.S0 && tot === r.final?.S0 - 100000 && disc === 100000, "a lower final price becomes the total, and the difference the discount (subtotal / discount / total)", r.final?.lower);
+R.ck(r.final?.lowerLines === r.final?.S0 && r.final?.lowerAnswer === tot, "the lines keep the prices they were sold at; the answer carries the final price");
+R.ck(r.final?.equal === `${r.final?.S0}/0/${r.final?.S0}` && r.final?.zero.endsWith("/0") && r.final?.zero.split("/")[1] === r.final?.zero.split("/")[0], "a final price equal to the items is no discount; 0 is allowed (everything discounted)", `${r.final?.equal} ${r.final?.zero}`);
+R.ck(/cannot be more than the items add up to/.test(r.final?.higher ?? ""), "a final price above what the items add up to is refused (to charge more, change a price)", r.final?.higher);
+R.ck(r.final?.bad?.every((m) => /must be an amount/.test(m ?? "")), "text or a negative amount is not a price");
+R.ck(r.final?.depositOverFinal === "The deposit cannot be more than the order's total.", "the deposit is checked against the FINAL price, not against the items");
+R.ck(r.final?.paidUp?.startsWith("placed:") && r.final?.details?.left === 0 && r.final?.details?.discount === 100000 && r.final?.details?.total === r.final?.S0 - 100000, "a deposit equal to the final price pays the order up, and the order's page shows the final total and the discount", JSON.stringify(r.final?.details));
 
 R.section("afterwards");
 R.ck(r.frozen === "invalid-input" && r.frozenEdit === "invalid-input", "the prescription the order uses can no longer be changed or edited");

@@ -37,6 +37,61 @@ export function configFilePath(): string {
   return process.env.OPTIPRO_CONFIG_FILE?.trim() || path.join(appDataDir(), CONFIG_FILE_NAME);
 }
 
+/** The name the settings file is given when the server stops accepting the shop's key: the same name followed by ".expired" (config.properties.expired). */
+export function expiredFilePath(): string {
+  return configFilePath() + ".expired";
+}
+
+/**
+ * Renames the settings file to config.properties.expired (a file of that name that was already there is replaced). Done when the server no longer accepts the shop's
+ * key: the app stops, nothing is lost (the key and the address stay in the renamed file), and the next start finds no settings file, so it checks the renamed one
+ * (see readExpiredSettings). Answers whether the file was renamed; a file that is not there, or cannot be renamed, is not an error.
+ */
+export function renameSettingsToExpired(): boolean {
+  try {
+    if (!fs.existsSync(configFilePath())) return false;
+    fs.rmSync(expiredFilePath(), { force: true });
+    fs.renameSync(configFilePath(), expiredFilePath());
+    return true;
+  } catch (err) {
+    console.error("Could not rename the settings file:", err);
+    return false;
+  }
+}
+
+/** The tenant key and the server address kept in the renamed settings file, or null when there is no such file or it holds one of them no more. */
+export function readExpiredSettings(): { tenantKey: string; serverUrl: string } | null {
+  try {
+    const properties = parseProperties(fs.readFileSync(expiredFilePath(), "utf8"));
+    const tenantKey = properties.get("tenant.key")?.trim();
+    const serverUrl = properties.get("server.url")?.trim().replace(/\/+$/, "");
+    return tenantKey && serverUrl ? { tenantKey, serverUrl } : null;
+  } catch {
+    return null;
+  }
+}
+
+/** Gives the renamed settings file its name back (the server accepts the key again). Nothing is done when a settings file exists already. Answers whether it was done. */
+export function restoreExpiredSettings(): boolean {
+  try {
+    if (fs.existsSync(configFilePath()) || !fs.existsSync(expiredFilePath())) return false;
+    fs.renameSync(expiredFilePath(), configFilePath());
+    return true;
+  } catch (err) {
+    console.error("Could not restore the settings file:", err);
+    return false;
+  }
+}
+
+/** Removes the renamed settings file (a new settings file has been written by the setup: the old one is not needed). */
+export function deleteExpiredSettings(): void {
+  try {
+    fs.rmSync(expiredFilePath(), { force: true });
+  } catch (err) {
+    console.error("Could not remove the renamed settings file:", err);
+  }
+}
+
 /**
  * A small subset of Java's .properties format: `key=value` lines, `#` or `!` for comments, blank
  * lines ignored, whitespace around the key and value trimmed, anything after the first `=` is the

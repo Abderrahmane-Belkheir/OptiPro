@@ -208,6 +208,7 @@
         const parts = [result.photosAdded ? `${result.photosAdded} added` : null, result.photosRemoved ? `${result.photosRemoved} removed` : null].filter(Boolean);
         const photos = parts.length ? ` (photos: ${parts.join(", ")})` : "";
         if (result.sentToServer && !result.deletionsWaiting) toast(`${result.accessory.name} was updated${photos} and sent to the server.`);
+        else if (result.notSentBecause === "still-sending") toast(`${result.accessory.name} was updated${photos}. The changes are being sent to the server.`);
         else toast(`${result.accessory.name} was updated${photos} on this computer. The server will get the changes when it can be reached.`);
       },
       onDeleted(result) {

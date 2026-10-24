@@ -12,8 +12,14 @@
 
 .dash-tiles {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(190px, 1fr));
+  grid-template-columns: repeat(3, minmax(0, 1fr)); /* six figures: two rows of three */
   gap: var(--space-3);
+}
+
+@media (max-width: 800px) {
+  .dash-tiles {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
 }
 
 .dash-card.dash-card--plain {
@@ -71,35 +77,20 @@
 
 .dash-grid {
   display: grid;
-  grid-template-columns: minmax(0, 2fr) minmax(0, 1fr);
-  grid-template-areas: "attention side" "stages side" "sales side";
+  grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: var(--space-4);
   align-items: start;
 }
 
-.dash-grid > [data-section="attention"] {
-  grid-area: attention;
-}
-
-.dash-grid > [data-section="stages"] {
-  grid-area: stages;
-}
-
-.dash-grid > [data-section="sales"] {
-  grid-area: sales;
-}
-
 .dash-side {
-  grid-area: side;
   display: flex;
   flex-direction: column;
   gap: var(--space-4);
 }
 
-@media (max-width: 1000px) {
+@media (max-width: 1100px) {
   .dash-grid {
     grid-template-columns: 1fr;
-    grid-template-areas: "attention" "stages" "side" "sales";
   }
 }
 
@@ -232,67 +223,22 @@
   margin: 0;
 }
 
-.dash-sync {
-  display: flex;
-  align-items: flex-start;
-  gap: var(--space-3);
-}
-
-.dash-sync__text {
-  margin: 0;
-  font-size: var(--text-sm);
-}
-
-.dash-sync__dot {
-  flex: none;
-  width: 10px;
-  height: 10px;
-  margin-top: 5px;
-  border-radius: var(--radius-full);
-  background: var(--color-success);
-}
-
-.dash-sync--pending .dash-sync__dot {
-  background: var(--color-brass);
-}
-
-.dash-sync--offline .dash-sync__dot {
-  background: var(--color-danger);
-}
-
-.dash-chart {
-  display: grid;
-  grid-auto-flow: column;
-  grid-auto-columns: minmax(0, 1fr);
-  align-items: end;
-  gap: var(--space-2);
-  height: 160px;
-}
-
-.dash-chart__col {
-  display: flex;
-  flex-direction: column;
-  justify-content: flex-end;
-  align-items: center;
-  gap: 4px;
-  height: 100%;
-}
-
-.dash-chart__bar {
-  width: 100%;
-  max-width: 36px;
-  border-radius: var(--radius-sm) var(--radius-sm) 0 0;
-  background: var(--color-brass);
-}
-
-.dash-chart__day {
-  color: var(--color-text-muted);
-  font-size: var(--text-2xs);
-}
-
 .dash-tile__sub {
   margin-top: 2px;
   color: var(--color-text-muted);
   font-size: var(--text-xs);
+  font-variant-numeric: tabular-nums;
+}
+
+/* a figure above a list: what customers owe, how many orders are ready */
+.dash-owed {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.dash-owed__value {
+  font-size: var(--text-title);
+  font-weight: var(--weight-bold);
   font-variant-numeric: tabular-nums;
 }

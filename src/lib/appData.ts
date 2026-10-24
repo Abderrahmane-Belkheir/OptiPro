@@ -26,6 +26,18 @@ export function appDataDir(): string {
 }
 
 /**
+ * The local database file: <app data>/OptiPro/local.db. SQLITE_DATABASE_URL points somewhere else instead (a path, or file:<path>), meant for tests and
+ * development so they don't touch the real file. It only says WHERE; nothing is opened or made here (sqliteClient.ts opens it, savedShop.ts only looks).
+ */
+export function localDbPath(): string {
+  const override = process.env.SQLITE_DATABASE_URL;
+  if (override) {
+    return override.startsWith("file:") ? override.slice("file:".length) : override;
+  }
+  return path.join(appDataDir(), "local.db");
+}
+
+/**
  * Where the photos picked for products are kept on this computer: <app data>/OptiPro/images, one file per photo,
  * named by the photo's id. OPTIPRO_IMAGES_DIR points somewhere else instead, meant for tests so they don't
  * touch the real folder.

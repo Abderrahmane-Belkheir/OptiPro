@@ -2,6 +2,8 @@
 // Read-only for now: orders are made from a customer's page. Real data, read through window.electronAPI.sales.list (src/local/salesService.ts).
 //   status chips (All, Confirmed, At the lab, Ready, Delivered, Cancelled) each with how many orders they hold, a search box (order number or customer
 //   name), the totals of what is shown, and the table.
+//   On the "Confirmed" list each order has a checkbox: the ones ticked are made into ONE PDF (their lab sheets, a page each) and the person then chooses the
+//   lenses supplier to send it to (labSendDialog.js). Sending itself does nothing yet.
 (() => {
   "use strict";
 
@@ -17,6 +19,8 @@
     ["cancelled", "Cancelled"],
   ];
   const LABEL = Object.fromEntries(STATUSES);
+  /** The list whose orders can be ticked and sent to the lenses supplier as lab sheets. */
+  const SEND_STATUS = "confirmed";
 
   // ---- Small helpers -------------------------------------------------------------------------
 
@@ -53,7 +57,7 @@
   // The page always opens on today: its year, month and day. A blank month shows the whole year, a blank day the whole month.
   const today = () => { const n = new Date(); return { year: String(n.getFullYear()), month: String(n.getMonth() + 1), day: String(n.getDate()) }; };
   // year/month/day are the period shown; draft is what the three lists say until the person confirms.
-  const state = { status: "all", query: "", ...today(), draft: today(), load: "loading", data: null, error: "", token: 0 };
+  const state = { status: "all", query: "", ...today(), draft: today(), load: "loading", data: null, error: "", token: 0, selected: new Set(), making: false, sendError: "" };
   let root = null;
   let refs = null;
 
@@ -66,6 +70,8 @@
       if (token !== state.token) return;
       state.data = data;
       state.load = "ready";
+      const present = new Set(data.rows.map((r) => r.id));
+      for (const id of [...state.selected]) if (!present.has(id)) state.selected.delete(id); // only what is on the list can stay ticked
     } catch (error) {
       if (token !== state.token) return;
       state.load = "error";
@@ -129,6 +135,7 @@
       searchInput,
       chips: h("div", { class: "chips", role: "group", "aria-label": "Filter by status", "data-chips": "" }),
       summary: h("div", { class: "summary", "data-summary": "" }),
+      bar: h("div", { class: "sales-sendbar", "data-sendbar": "", hidden: true }),
       card: h("div", { class: "table-card", "data-sales": "" }),
       footnote: h("p", { class: "toolbar__count", "data-footnote": "" }),
     };
@@ -139,6 +146,7 @@
       h("header", { class: "page__header" }, h("div", null, h("h2", { class: "page__title", id: "sales-title" }, "Orders"), h("p", { class: "page__description" }, "Every order of the shop, newest first. Orders are made from a customer's page."))),
       refs.summary,
       h("div", { class: "toolbar sales-toolbar" }, h("form", { class: "search", role: "search", onsubmit: (e) => e.preventDefault() }, icon("search"), searchInput, clear), period, refs.chips),
+      refs.bar,
       refs.card,
       refs.footnote,
     );
@@ -159,11 +167,15 @@
     refs.summary.replaceChildren();
     if (data) {
       const t = data.totals;
-      const tile = (key, label, value, tone) => h("div", { class: `summary__tile${tone ? ` summary__tile--${tone}` : ""}`, "data-tile": key }, h("span", { class: "summary__label" }, label), h("span", { class: "summary__value" }, value));
-      refs.summary.append(tile("orders", state.status === "cancelled" ? "Orders (cancelled are not counted)" : "Orders", String(t.orders)), tile("value", "Value", money(t.valueCents)), tile("paid", "Paid", money(t.paidCents)), tile("left", "Left to pay", money(t.remainingCents), t.remainingCents > 0 ? "due" : null));
+      const tile = (key, label, value, tone, note) => h("div", { class: `summary__tile${tone ? ` summary__tile--${tone}` : ""}`, "data-tile": key }, h("span", { class: "summary__label" }, label), h("span", { class: "summary__value" }, value), note ? h("span", { class: "summary__note", "data-note": key }, note) : null);
+      // The net profit: what the customers pay (the final price) minus what the items cost on the day of the sale. Orders whose cost was not known are not in it.
+      const profitKnown = t.profitOrders > 0 || t.withoutCostOrders === 0;
+      const profitNote = t.withoutCostOrders > 0 ? `${t.withoutCostOrders} ${t.withoutCostOrders === 1 ? "order has" : "orders have"} no known cost and ${t.withoutCostOrders === 1 ? "is" : "are"} not counted` : null;
+      refs.summary.append(tile("orders", state.status === "cancelled" ? "Orders (cancelled are not counted)" : "Orders", String(t.orders)), tile("value", "Value", money(t.valueCents)), tile("paid", "Paid", money(t.paidCents)), tile("left", "Left to pay", money(t.remainingCents), t.remainingCents > 0 ? "due" : null), tile("profit", "Net profit", profitKnown ? money(t.profitCents) : "—", t.profitCents < 0 && profitKnown ? "due" : null, profitNote), tile("collected", "Profit collected", profitKnown ? money(t.collectedProfitCents) : "—", t.collectedProfitCents < 0 && profitKnown ? "due" : null, "Payments received minus costs"));
     }
     refs.summary.hidden = !data;
 
+    renderBar();
     refs.card.replaceChildren();
     refs.card.dataset.status = state.load;
     refs.footnote.textContent = data && data.matching > data.shown ? `Showing the newest ${data.shown} of ${data.matching} orders. Search to narrow them down.` : "";
@@ -173,6 +185,38 @@
     }
     if (!data || data.rows.length === 0) return refs.card.append(emptyState(data));
     refs.card.append(table(data.rows));
+  }
+
+  /** The bar above the At the lab list: how many orders are ticked, and the button that makes the PDF and goes on to the supplier. */
+  function renderBar() {
+    const on = state.status === SEND_STATUS && !!state.data && state.data.rows.length > 0;
+    refs.bar.hidden = !on;
+    refs.bar.replaceChildren();
+    if (!on) return;
+    const n = state.selected.size;
+    const button = h("button", { class: "btn btn--primary", type: "button", "data-action": "generate-send", disabled: n === 0 || state.making, onclick: generateAndSend }, icon("printer"), state.making ? "Making the PDF…" : "Generate PDF and send");
+    refs.bar.append(
+      h("span", { class: "sales-sendbar__count", "data-selected-count": "", role: "status" }, n === 0 ? "Tick the orders to send to the lenses supplier." : `${n} ${n === 1 ? "order" : "orders"} selected`),
+      button,
+      state.sendError ? h("p", { class: "field__error", role: "alert", "data-send-error": "" }, state.sendError) : null,
+    );
+  }
+
+  async function generateAndSend() {
+    if (state.making || state.selected.size === 0) return;
+    state.making = true;
+    state.sendError = "";
+    renderBar();
+    try {
+      // in the order of the list, in the language the app is showing
+      const ids = state.data.rows.filter((r) => state.selected.has(r.id)).map((r) => r.id);
+      const pdf = await window.electronAPI.documents.labPdf(ids, window.i18n?.lang ?? "en");
+      window.openLabSend?.(pdf);
+    } catch (error) {
+      state.sendError = errorText(error);
+    }
+    state.making = false;
+    renderBar();
   }
 
   function emptyState(data) {
@@ -190,16 +234,34 @@
   }
 
   function table(rows) {
+    const ticking = state.status === SEND_STATUS;
+    const allTicked = rows.length > 0 && rows.every((r) => state.selected.has(r.id));
+    const tickAll = h("input", { type: "checkbox", "aria-label": "Select all orders", "data-select-all": "", checked: allTicked });
+    tickAll.addEventListener("change", () => {
+      for (const r of rows) tickAll.checked ? state.selected.add(r.id) : state.selected.delete(r.id);
+      state.sendError = "";
+      render();
+    });
     return h(
       "div",
       { class: "table-scroll" },
       h(
         "table",
         { class: "table sales-table" },
-        h("thead", null, h("tr", null, h("th", { scope: "col" }, "Order"), h("th", { scope: "col" }, "Customer"), h("th", { scope: "col" }, "Status"), h("th", { scope: "col" }, "Promised"), h("th", { scope: "col", class: "sales-money" }, "Total"), h("th", { scope: "col", class: "sales-money" }, "Paid"), h("th", { scope: "col", class: "sales-money" }, "Left to pay"))),
+        h("thead", null, h("tr", null, ticking ? h("th", { scope: "col", class: "sales-tick" }, tickAll) : null, h("th", { scope: "col" }, "Order"), h("th", { scope: "col" }, "Customer"), h("th", { scope: "col" }, "Status"), h("th", { scope: "col" }, "Promised"), h("th", { scope: "col", class: "sales-money" }, "Total"), h("th", { scope: "col", class: "sales-money" }, "Paid"), h("th", { scope: "col", class: "sales-money" }, "Left to pay"))),
         h("tbody", null, rows.map(row)),
       ),
     );
+  }
+
+  function tickBox(sale) {
+    const box = h("input", { type: "checkbox", "aria-label": `Select order ${sale.number}`, "data-select": sale.id, checked: state.selected.has(sale.id) });
+    box.addEventListener("change", () => {
+      box.checked ? state.selected.add(sale.id) : state.selected.delete(sale.id);
+      state.sendError = "";
+      render();
+    });
+    return box;
   }
 
   function row(sale) {
@@ -207,7 +269,8 @@
     const promised = sale.deliveredAt ? `Delivered ${formatDay(sale.deliveredAt)}` : sale.promisedAt && !cancelled ? formatDay(sale.promisedAt) : "—";
     return h(
       "tr",
-      { "data-id": sale.id, "data-status": sale.status, class: cancelled ? "sales-row--cancelled" : null },
+      { "data-id": sale.id, "data-status": sale.status, "data-href": `orders/${encodeURIComponent(sale.id)}`, class: cancelled ? "sales-row--cancelled" : null },
+      state.status === SEND_STATUS ? h("td", { class: "sales-tick" }, tickBox(sale)) : null,
       h("td", null, h("div", { class: "cell-name__stack" }, h("a", { class: "cell-name__text sales-order-link", "data-cell": "number", href: `#orders/${encodeURIComponent(sale.id)}` }, sale.number), h("span", { class: "cell-name__sub" }, formatDay(sale.orderedAt)))),
       h("td", { "data-cell": "customer" }, sale.customerId ? h("a", { class: "sales-customer", href: `#customers/${encodeURIComponent(sale.customerId)}` }, sale.customerName) : h("span", { class: "cell-secondary" }, sale.customerName)),
       h("td", null, h("span", { class: `status status--${sale.status}` }, LABEL[sale.status] ?? sale.status)),
@@ -224,6 +287,7 @@
     const content = document.getElementById("content");
     const match = /^orders(?:\/([a-z_]+))?$/.exec(location.hash.slice(1));
     if (match && (match[1] === undefined || STATUSES.some(([k]) => k === match[1] && k !== "all"))) {
+      if ((match[1] ?? "all") !== state.status) { state.selected.clear(); state.sendError = ""; } // the ticks belong to one list
       state.status = match[1] ?? "all";
       if (!root) {
         root = build();
@@ -239,6 +303,8 @@
       state.draft = today();
       state.data = null;
       state.status = "all";
+      state.selected.clear();
+      state.sendError = "";
     }
   }
 

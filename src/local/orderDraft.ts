@@ -15,6 +15,13 @@ export interface OrderDraft {
   lensDescription?: Value;
   /** The price of the lens pair, typed. Optional with lensId (the catalogue price is used), required with lensDescription. */
   lensPrice?: Value;
+  /**
+   * What the customer pays for the WHOLE order, typed. Optional: empty means the total of the items. It can only be lower (a discount): the difference is
+   * saved as the order's discount, and the lines keep the prices they were sold at.
+   */
+  finalPrice?: Value;
+  /** What the lens pair costs the shop, typed. Optional: empty means the cost saved with the lens in the catalogue, if it has one. */
+  lensCost?: Value;
   /** Paid now, typed. Optional. */
   deposit?: Value;
   pdRight?: Value;
@@ -40,6 +47,10 @@ export interface CleanDraft {
   lensDescription: string | null;
   /** In centimes; null when none was typed. */
   lensPriceCents: number | null;
+  /** The final price of the whole order in centimes; null = the total of the items. */
+  finalPriceCents: number | null;
+  /** The lens pair's cost in centimes; null = none typed (the catalogue's, if any). */
+  lensCostCents: number | null;
   depositCents: number;
   pdRight: number | null;
   pdLeft: number | null;
@@ -97,7 +108,7 @@ export function validateOrderDraft(draft: OrderDraft, today: Date = new Date()):
   const money = (key: keyof OrderDraft, label: string): number | null => {
     const cents = parseMoney(d[key]);
     if (cents === null) return null;
-    if (Number.isNaN(cents)) {
+    if (Number.isNaN(cents) || cents < 0) {
       errors[key] = `${label} must be an amount, like 5000 or 5000.50.`;
       return null;
     }
@@ -110,6 +121,8 @@ export function validateOrderDraft(draft: OrderDraft, today: Date = new Date()):
   const lensPriceCents = money("lensPrice", "The lens price");
   if (lensDescription && !lensId && lensPriceCents === null && !errors.lensPrice) errors.lensPrice = "Give the price of the described lens.";
   const depositCents = money("deposit", "The deposit") ?? 0;
+  const finalPriceCents = money("finalPrice", "The final price");
+  const lensCostCents = money("lensCost", "The lens cost");
 
   if (!frameId && !accessoryId && !lensId && !lensDescription && !errors.lensDescription) errors.items = "Choose something to sell: a frame, an accessory or a lens.";
 
@@ -149,7 +162,7 @@ export function validateOrderDraft(draft: OrderDraft, today: Date = new Date()):
 
   if (Object.keys(errors).length > 0) return { errors };
   return {
-    draft: { customerId: customerId!, prescriptionId, frameId, accessoryId, lensId, lensDescription, lensPriceCents, depositCents, pdRight, pdLeft, fittingHeightRight, fittingHeightLeft, promisedAt, notes },
+    draft: { customerId: customerId!, prescriptionId, frameId, accessoryId, lensId, lensDescription, lensPriceCents, finalPriceCents, lensCostCents, depositCents, pdRight, pdLeft, fittingHeightRight, fittingHeightLeft, promisedAt, notes },
   };
 }
 

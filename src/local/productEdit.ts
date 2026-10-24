@@ -5,7 +5,7 @@ import { MAX_PHOTOS, type CleanPhoto } from "./frameValidation";
 import type { ProductType } from "./imageService";
 import { attemptDeletion, queueDeletionIn } from "./pendingDeletions";
 import { localPhotoService, photoRowData, removePhotoFiles, stagePhotoFiles } from "./photoService";
-import { pushRow } from "./syncPush";
+import { interactiveWaitMs, pushRow } from "./syncPush";
 
 /**
  * The steps that creating, editing and deleting a frame and an accessory have in common (the services differ in what they
@@ -62,30 +62,55 @@ interface SendOutcome {
   /** True when the server has the product with its current values (it is marked synced). */
   sentToServer: boolean;
   /** Why it was not sent, when it was not: "push-failed" (offline or refused) or "parents-not-synced" (a parent, its brand, is not on the server yet). */
-  notSentBecause?: "push-failed" | "parents-not-synced";
+  notSentBecause?: "push-failed" | "parents-not-synced" | "still-sending";
   /** How many of the new photos the server has now (0 while the product itself is not on the server). */
   photosUploaded: number;
 }
 
-/** Step 4 for a product and its new photos: the product first, and only if the server has it, the photos. */
+/** Uploads the photos one after the other; `counter.n` is how many the server has. Never throws. */
+async function uploadPhotos(photoIds: string[], counter: { n: number }, step: StepLog): Promise<void> {
+  for (const photoId of photoIds) {
+    try {
+      const ok = await localPhotoService.uploadPhoto(photoId);
+      if (ok) counter.n += 1;
+      step(ok ? `uploaded photo ${photoId}` : `photo ${photoId} was not uploaded (stays unsynced, sent later)`);
+    } catch (err) {
+      step(`photo ${photoId} was not uploaded (${(err as Error).message}); stays unsynced, sent later`);
+    }
+  }
+}
+
+/**
+ * Step 4 for a product and its new photos: the product first, and only if the server has it, the photos. The person waits for this only as long as
+ * interactiveWaitMs() allows (the product, then the photos together): a slower server never holds the screen. What is not done by then goes on in the background (the
+ * photos follow the product as soon as it has landed), and the answer says "still-sending".
+ */
 async function sendToServer(table: "frames" | "accessories", id: string, newPhotoIds: string[], step: StepLog, type: ProductType): Promise<SendOutcome> {
+  const started = Date.now();
+  const counter = { n: 0 };
   const pushed = await pushRow(table, id);
+
+  if (pushed.reason === "push-pending") {
+    step(`the server has not answered yet: the ${type} is being sent in the background`);
+    void pushed.done?.then((final) => (final.synced ? uploadPhotos(newPhotoIds, counter, step) : undefined)).catch(() => undefined);
+    return { sentToServer: false, notSentBecause: "still-sending", photosUploaded: 0 };
+  }
   step(pushed.synced ? `the server accepted the ${type}: marked synced` : `the ${type} was not sent (${pushed.reason}); it stays saved here and is sent later`);
 
-  let photosUploaded = 0;
-  if (pushed.synced) {
-    for (const photoId of newPhotoIds) {
-      const ok = await localPhotoService.uploadPhoto(photoId);
-      if (ok) photosUploaded += 1;
-      step(ok ? `uploaded photo ${photoId}` : `photo ${photoId} was not uploaded (stays unsynced, sent later)`);
-    }
-  } else if (newPhotoIds.length > 0) {
+  if (pushed.synced && newPhotoIds.length > 0) {
+    // the photos can be big: wait for them only for what is left of the short wait; the rest of them are uploaded in the background
+    const uploads = uploadPhotos(newPhotoIds, counter, step);
+    const left = Math.max(interactiveWaitMs() - (Date.now() - started), 0);
+    let timer: NodeJS.Timeout | undefined;
+    const finished = await Promise.race([uploads.then(() => true), new Promise<boolean>((resolve) => { timer = setTimeout(() => resolve(false), left); })]).finally(() => clearTimeout(timer));
+    if (!finished) step("some photos are still being uploaded: they go on in the background");
+  } else if (!pushed.synced && newPhotoIds.length > 0) {
     step("new photos not uploaded: the product is not on the server yet (they are uploaded by the next sync pass)");
   }
   return {
     sentToServer: pushed.synced,
     ...(pushed.synced ? {} : { notSentBecause: pushed.reason === "parents-not-synced" ? ("parents-not-synced" as const) : ("push-failed" as const) }),
-    photosUploaded,
+    photosUploaded: counter.n,
   };
 }
 

@@ -20,6 +20,11 @@ runScript(
   await order('o3', 'CMD-0003', 'ready', 'c2', -5, 5, 60000);
   await order('o4', 'CMD-0004', 'confirmed', null, -1, 7, 20000);
   await order('o5', 'CMD-0005', 'cancelled', 'c2', -2, 3, 50000);
+  // the lines, with the cost of the day: o1 and o3 are known (profits 400 and 300), o2 has a line with no cost, o4 has no lines
+  const line = (orderId, price, cost) => p.orderItem.create({ data: { orderId, kind: 'frame', description: 'Frame', quantity: 1, unitPriceCents: price, totalCents: price, unitCostCents: cost, ...S } });
+  await line('o1', 100000, 60000);
+  await line('o2', 80000, null);
+  await line('o3', 60000, 30000);
   const pay = (id, orderId, amountCents) => p.payment.create({ data: { id, orderId, amountCents, ...S } });
   await pay('p1', 'o1', 100000);
   await pay('p2', 'o2', 30000);
@@ -151,6 +156,26 @@ const go = async (hash, keepPeriod = false) => {
 
     await go("orders/nope").catch(() => {});
     R.ck(await A.val("!document.querySelector('[data-sales]')"), "an unknown status is not this page");
+
+    R.section("net profit");
+    await go("orders");
+    const tileText = (key) => A.val(`document.querySelector('[data-tile=${key}] .summary__value')?.textContent ?? null`);
+    const noteText = (key) => A.val(`document.querySelector('[data-note=${key}]')?.textContent ?? null`);
+    const num = (s) => Number(String(s).replace(/[^\d.-]/g, "").replace(/^(-?\d+)\.(\d{3})$/, "$1$2"));
+    R.ck(await A.val("[...document.querySelectorAll('[data-tile]')].map((e) => e.dataset.tile).join() === 'orders,value,paid,left,profit,collected'"), "the strip has a Net profit tile and a Profit collected tile after Left to pay");
+    R.ck((await A.val("document.querySelector('[data-tile=profit] .summary__label').textContent")) === "Net profit", "called Net profit");
+    R.ck(num(await tileText("profit")) === 700 && /^2 orders have no known cost and are not counted$/.test(await noteText("profit")), "over every order: the final prices minus the saved costs (400 + 300), and the two orders with an unknown cost are said to be left out", `${await tileText("profit")} | ${await noteText("profit")}`);
+    R.ck(num(await tileText("collected")) === 250 && (await noteText("collected")) === "Payments received minus costs", "Profit collected: the payments received minus the costs, over the same orders (o1: 1000 - 600 = +400, o3: 150 - 300 = -150)", await tileText("collected"));
+    await go("orders/delivered");
+    R.ck(num(await tileText("collected")) === 400, "and it follows the status filter too", await tileText("collected"));
+    await go("orders/at_lab");
+    R.ck((await tileText("collected")) === "—", "with no known cost it is a dash as well");
+    await go("orders/delivered");
+    R.ck(num(await tileText("profit")) === 400 && (await noteText("profit")) === null, "it follows the status filter (Delivered: 400, nothing left out, so no note)", await tileText("profit"));
+    await go("orders/at_lab");
+    R.ck((await tileText("profit")) === "—" && /^1 order has no known cost and is not counted$/.test(await noteText("profit")), "when no order of the list has a known cost it shows a dash, not 0, and says why", `${await tileText("profit")} | ${await noteText("profit")}`);
+    await go("orders/cancelled");
+    R.ck((await noteText("profit")) === null, "cancelled orders are not counted, so nothing is said about them");
 
     R.section("the window");
     R.ck(A.problems.length === 0, "no errors or exceptions in the window", A.problems.join(" | "));

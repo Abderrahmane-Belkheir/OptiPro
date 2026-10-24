@@ -22,7 +22,7 @@
 
     <header class="setup__header">
       <h1 class="setup__title" id="setup-title">Set up your shop</h1>
-      <p class="setup__intro">The settings file is missing or incomplete, so the app cannot start yet. Enter the shop's key, its server address and its details.</p>
+      <p class="setup__intro" id="setup-intro">The settings file is missing or incomplete, so the app cannot start yet. Enter the shop's key, its server address and its details.</p>
     </header>
 
     <form class="setup__form" id="setup-form" novalidate>
@@ -40,7 +40,7 @@
         </label>
       </fieldset>
 
-      <fieldset class="setup__group">
+      <fieldset class="setup__group" data-details>
         <legend class="setup__legend">The shop</legend>
         <label class="field">
           <span class="field__label">Shop name <span class="field__required" aria-hidden="true">*</span></span>
@@ -62,7 +62,7 @@
         </label>
       </fieldset>
 
-      <fieldset class="setup__group">
+      <fieldset class="setup__group" data-details>
         <legend class="setup__legend">Social networks</legend>
         <div class="setup__row">
           <label class="field">

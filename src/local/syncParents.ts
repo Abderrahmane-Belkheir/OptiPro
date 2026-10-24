@@ -20,6 +20,7 @@ export const SYNCED_TABLES = {
   accessories: { delegate: "accessory", label: "accessory" },
   lenses: { delegate: "lens", label: "lens" },
   suppliers: { delegate: "supplier", label: "supplier" },
+  supplier_orders: { delegate: "supplierOrder", label: "supplier order" },
   prescriptions: { delegate: "prescription", label: "prescription" },
   orders: { delegate: "order", label: "order" },
   invoices: { delegate: "invoice", label: "invoice" },
@@ -47,6 +48,12 @@ export const SYNC_PARENTS: Record<string, SyncParent[]> = {
   orders: [
     { field: "customerId", parent: "customers", optional: true },
     { field: "prescriptionId", parent: "prescriptions", optional: true },
+  ],
+  supplier_orders: [{ field: "supplierId", parent: "suppliers" }],
+  supplier_order_items: [
+    { field: "supplierOrderId", parent: "supplier_orders" },
+    { field: "frameId", parent: "frames", optional: true },
+    { field: "accessoryId", parent: "accessories", optional: true },
   ],
   order_items: [
     { field: "orderId", parent: "orders" },

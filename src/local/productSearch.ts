@@ -82,19 +82,51 @@ function validated(query: unknown, by: SearchBy): string {
 const words = (query: unknown): string[] => (typeof query === "string" ? query.trim().split(/\s+/).filter(Boolean).slice(0, 6) : []);
 const limitOf = (limit: unknown): number => (typeof limit === "number" && Number.isInteger(limit) && limit > 0 ? Math.min(limit, SEARCH_LIMIT_MAX) : SEARCH_LIMIT_DEFAULT);
 
-export async function searchFrames(query: string = "", limit?: number, by?: SearchBy): Promise<ProductHit[]> {
+/** Every typed word has to match a frame somewhere: its name, reference or brand (by model), its code (by code), or any of them. */
+function frameWords(text: string, mode: SearchBy) {
+  return words(text).map((w) => ({
+    OR: [
+      ...(mode !== "code" ? [{ name: { contains: w } }, { reference: { contains: w } }, { brand: { is: { name: { contains: w } } } }] : []),
+      ...(mode !== "model" ? codeVariants(w).map((c) => ({ code: { contains: c } })) : []),
+    ],
+  }));
+}
+
+export const FRAMES_SEARCH_LIMIT = 60;
+
+/**
+ * The ids of the frames that match what was typed, in name order, for the Frames page. A brand and a category narrow the search WHEN THEY ARE GIVEN (the
+ * page gives the ones that are chosen); left out, the search looks at all the shop's frames and only what was typed counts. At most `limit` (default 60,
+ * at most 120); one more than asked is read so the page can say there are more, which is why it is the caller that cuts.
+ */
+export async function searchFrameIds(query: string = "", by?: SearchBy, filter: { brandId?: string | null; categoryId?: number | null; outOfStock?: boolean; notOrdered?: boolean } = {}, limit?: number): Promise<string[]> {
+  const tenantKey = await currentTenantKey();
+  const mode = searchBy(by);
+  const text = validated(query, mode);
+  const brandId = typeof filter?.brandId === "string" && filter.brandId !== "" ? filter.brandId : undefined;
+  const categoryId = typeof filter?.categoryId === "number" && Number.isInteger(filter.categoryId) ? filter.categoryId : undefined;
+  const take = typeof limit === "number" && Number.isInteger(limit) && limit > 0 ? Math.min(limit, 120) : FRAMES_SEARCH_LIMIT;
+  const rows = await sqlitePrisma.frame.findMany({
+    where: { tenantKey, ...(brandId ? { brandId } : {}), ...(categoryId !== undefined ? { categoryId } : {}), ...(filter?.outOfStock === true ? { stock: 0 } : {}),
+      // (notOrdered: no line of a supplier order is waiting for this frame, i.e. none with used = false: it was ordered while it still had stock)
+      ...(filter?.notOrdered === true ? { supplierOrderItems: { none: { used: false } } } : {}), AND: frameWords(text, mode) },
+    select: { id: true },
+    orderBy: [{ name: "asc" }, { id: "asc" }],
+    take: take + 1,
+  });
+  return rows.map((r) => r.id);
+}
+
+/** filter.inStock: only the frames (or accessories) with at least one piece in stock: what a customer's order can be made with. */
+export async function searchFrames(query: string = "", limit?: number, by?: SearchBy, filter: { inStock?: boolean } = {}): Promise<ProductHit[]> {
   const tenantKey = await currentTenantKey();
   const mode = searchBy(by);
   const text = validated(query, mode);
   const rows = await sqlitePrisma.frame.findMany({
     where: {
       tenantKey,
-      AND: words(text).map((w) => ({
-        OR: [
-          ...(mode !== "code" ? [{ name: { contains: w } }, { reference: { contains: w } }, { brand: { is: { name: { contains: w } } } }] : []),
-          ...(mode !== "model" ? codeVariants(w).map((c) => ({ code: { contains: c } })) : []),
-        ],
-      })),
+      ...(filter?.inStock === true ? { stock: { gt: 0 } } : {}),
+      AND: frameWords(text, mode),
     },
     include: { brand: { select: { name: true } } },
     orderBy: [{ name: "asc" }, { id: "asc" }],
@@ -103,13 +135,14 @@ export async function searchFrames(query: string = "", limit?: number, by?: Sear
   return rows.map((f) => ({ id: f.id, code: f.code, name: f.name, brand: f.brand.name, reference: f.reference, price: f.price, currency: f.currency, stock: f.stock }));
 }
 
-export async function searchAccessories(query: string = "", limit?: number, by?: SearchBy): Promise<ProductHit[]> {
+export async function searchAccessories(query: string = "", limit?: number, by?: SearchBy, filter: { inStock?: boolean } = {}): Promise<ProductHit[]> {
   const tenantKey = await currentTenantKey();
   const mode = searchBy(by);
   const text = validated(query, mode);
   const rows = await sqlitePrisma.accessory.findMany({
     where: {
       tenantKey,
+      ...(filter?.inStock === true ? { stock: { gt: 0 } } : {}),
       AND: words(text).map((w) => ({
         OR: [
           ...(mode !== "code" ? [{ name: { contains: w } }, { description: { contains: w } }] : []),
@@ -121,4 +154,66 @@ export async function searchAccessories(query: string = "", limit?: number, by?:
     take: limitOf(limit),
   });
   return rows.map((a) => ({ id: a.id, code: a.code, name: a.name, brand: null, reference: null, price: a.price, currency: a.currency, stock: a.stock }));
+}
+
+/** A frame or an accessory found for a supplier order. */
+export interface SupplierProductHit {
+  kind: "frame" | "accessory";
+  id: string;
+  name: string;
+  /** The frame's brand; null for an accessory. */
+  brand: string | null;
+  code: string | null;
+  reference: string | null;
+  stock: number;
+}
+
+/** How many products the search for a supplier order shows. */
+export const SUPPLIER_PRODUCTS_PAGE = 60;
+
+/**
+ * The frames AND accessories a supplier order can be made for: those that have no line waiting in a supplier order (none with used = false). By model or by code, like
+ * the other searches. filter.categoryId narrows to the frames of that category (accessories have none, so they are left out); filter.accessoriesOnly lists only accessories.
+ * Newest names first is not needed: the result is in the order of the names. `more` says there were more than the page.
+ */
+export async function searchSupplierProducts(
+  query: string = "",
+  by?: SearchBy,
+  filter: { categoryId?: number | null; accessoriesOnly?: boolean } = {},
+): Promise<{ products: SupplierProductHit[]; more: boolean }> {
+  const tenantKey = await currentTenantKey();
+  const mode = searchBy(by);
+  const text = validated(query, mode);
+  const categoryId = typeof filter?.categoryId === "number" && Number.isInteger(filter.categoryId) ? filter.categoryId : undefined;
+  const accessoriesOnly = filter?.accessoriesOnly === true;
+  const hits: SupplierProductHit[] = [];
+
+  if (!accessoriesOnly) {
+    const frames = await sqlitePrisma.frame.findMany({
+      where: { tenantKey, ...(categoryId !== undefined ? { categoryId } : {}), supplierOrderItems: { none: { used: false } }, AND: frameWords(text, mode) },
+      include: { brand: { select: { name: true } } },
+      orderBy: [{ name: "asc" }, { id: "asc" }],
+      take: SUPPLIER_PRODUCTS_PAGE + 1,
+    });
+    for (const f of frames) hits.push({ kind: "frame", id: f.id, name: f.name, brand: f.brand.name, code: f.code, reference: f.reference, stock: f.stock });
+  }
+  if (categoryId === undefined) {
+    const accessories = await sqlitePrisma.accessory.findMany({
+      where: {
+        tenantKey,
+        supplierOrderItems: { none: { used: false } },
+        AND: words(text).map((w) => ({
+          OR: [
+            ...(mode !== "code" ? [{ name: { contains: w } }, { description: { contains: w } }] : []),
+            ...(mode !== "model" ? codeVariants(w).map((c) => ({ code: { contains: c } })) : []),
+          ],
+        })),
+      },
+      orderBy: [{ name: "asc" }, { id: "asc" }],
+      take: SUPPLIER_PRODUCTS_PAGE + 1,
+    });
+    for (const a of accessories) hits.push({ kind: "accessory", id: a.id, name: a.name, brand: null, code: a.code, reference: null, stock: a.stock });
+  }
+  hits.sort((x, y) => x.name.localeCompare(y.name) || x.id.localeCompare(y.id));
+  return { products: hits.slice(0, SUPPLIER_PRODUCTS_PAGE), more: hits.length > SUPPLIER_PRODUCTS_PAGE };
 }

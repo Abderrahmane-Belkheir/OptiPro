@@ -22,7 +22,7 @@ function sandbox(prefix = "op-test-") {
 function runScript(box, source) {
   const file = path.join(box.dir, `script-${Math.random().toString(16).slice(2)}.cjs`);
   fs.writeFileSync(file, `process.env.SQLITE_DATABASE_URL=${JSON.stringify(box.db)}; process.env.OPTIPRO_CONFIG_FILE=${JSON.stringify(box.config)};\nconst ROOT=${JSON.stringify(ROOT)};\nconst {sqlitePrisma:p}=require(ROOT+'/dist/lib/sqliteClient.js');\n(async()=>{\n${source}\nawait p.$disconnect();\n})().catch((e)=>{console.error(e);process.exit(1)});`);
-  const r = spawnSync(ELECTRON, [file], { env: { ...process.env, ELECTRON_RUN_AS_NODE: "1" }, encoding: "utf8" });
+  const r = spawnSync(ELECTRON, [file], { env: { ...process.env, ELECTRON_RUN_AS_NODE: "1", OPTIPRO_PUSH_WAIT_MS: process.env.OPTIPRO_PUSH_WAIT_MS ?? "60000" }, encoding: "utf8" });
   if (r.status !== 0) throw new Error(`script failed: ${r.stderr || r.stdout}`);
   return r.stdout;
 }
@@ -32,7 +32,7 @@ const freePort = () => new Promise((resolve) => { const s = net.createServer().l
 /** Starts the app on the sandbox and answers { val, until, stop, problems }. `val(expr)` evaluates a JS expression in the page and returns its JSON value. */
 async function launchApp(box, extraEnv = {}, page = /renderer[\\/]index\.html/) {
   const port = await freePort();
-  const env = { ...process.env, SQLITE_DATABASE_URL: box.db, OPTIPRO_CONFIG_FILE: box.config, OPTIPRO_IMAGES_DIR: box.images, OPTIPRO_LABEL_PDF_DIR: box.pdf, ...extraEnv };
+  const env = { ...process.env, SQLITE_DATABASE_URL: box.db, OPTIPRO_CONFIG_FILE: box.config, OPTIPRO_IMAGES_DIR: box.images, OPTIPRO_LABEL_PDF_DIR: box.pdf, OPTIPRO_PUSH_WAIT_MS: "60000", ...extraEnv };
   delete env.ELECTRON_RUN_AS_NODE;
   const app = spawn(ELECTRON, [".", `--remote-debugging-port=${port}`, `--user-data-dir=${path.join(box.dir, "electron-profile")}`, // (its own profile: the tests never read or change the real app's saved settings, such as its language)
      "--disable-features=CalculateNativeWinOcclusion"], { cwd: ROOT, env, stdio: ["ignore", "pipe", "pipe"] });

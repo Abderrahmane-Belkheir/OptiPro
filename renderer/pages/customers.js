@@ -192,8 +192,8 @@
     );
     return h(
       "tr",
-      null,
-      h("td", null, h("div", { class: "cell-name" }, h("span", { class: "avatar-initials", "aria-hidden": "true" }, initials(customer.name)), h("span", { class: "cell-name__stack" }, h("span", { class: "cell-name__text" }, customer.name), h("span", { class: "cell-name__sub", title: customer.address ?? "" }, customer.address ?? "")))),
+      { "data-href": `customers/${encodeURIComponent(customer.id)}`, "data-customer": customer.id },
+      h("td", null, h("div", { class: "cell-name" }, h("span", { class: "avatar-initials", "aria-hidden": "true" }, initials(customer.name)), h("span", { class: "cell-name__stack" }, h("a", { class: "cell-name__text sales-customer", href: `#customers/${encodeURIComponent(customer.id)}`, "data-open-customer": customer.id }, customer.name), h("span", { class: "cell-name__sub", title: customer.address ?? "" }, customer.address ?? "")))),
       h("td", { class: "cell-number" }, customer.phone ? customer.phone : h("span", { class: "cell-empty" }, "—")),
       h("td", null, text(customer.email)),
       h("td", { class: "col-address" }, text(customer.address)),

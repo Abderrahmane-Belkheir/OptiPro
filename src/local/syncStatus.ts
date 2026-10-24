@@ -25,6 +25,8 @@ const SHOP_TABLES = [
   ["suppliers", "supplier"],
   ["prescriptions", "prescription"],
   ["orders", "order"],
+  ["supplier_orders", "supplierOrder"],
+  ["supplier_order_items", "supplierOrderItem"],
   ["order_items", "orderItem"],
   ["payments", "payment"],
   ["invoices", "invoice"],

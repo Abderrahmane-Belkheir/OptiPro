@@ -1,7 +1,7 @@
 import { sqlitePrisma } from "../lib/sqliteClient";
 import type {
   Invoice, InvoiceItem, Lens, NewInvoice, NewInvoiceItem, NewLens, NewOrder, NewOrderItem, NewPayment,
-  NewPrescription, NumberSequence, Order, OrderItem, Payment, Prescription,
+  NewPrescription, NewSupplierOrder, NewSupplierOrderItem, NumberSequence, SupplierOrder, SupplierOrderItem, Order, OrderItem, Payment, Prescription,
 } from "../services/types";
 import { currentTenantKey } from "./context";
 import { parentsOf } from "./syncParents";
@@ -197,6 +197,25 @@ export const localOrderItemService = createLocalTableService<OrderItem, NewOrder
   label: "order item",
   delegate: "orderItem",
   parents: parentsOf("order_items"),
+  orderBy: { createdAt: "asc" },
+});
+
+export const localSupplierOrderService = createLocalTableService<SupplierOrder, NewSupplierOrder>({
+  table: "supplier_orders",
+  neverDeleted: true,
+  label: "supplier order",
+  delegate: "supplierOrder",
+  dateFields: ["orderedAt"],
+  parents: parentsOf("supplier_orders"),
+  orderBy: { orderedAt: "desc" },
+});
+
+export const localSupplierOrderItemService = createLocalTableService<SupplierOrderItem, NewSupplierOrderItem>({
+  table: "supplier_order_items",
+  neverDeleted: true,
+  label: "supplier order item",
+  delegate: "supplierOrderItem",
+  parents: parentsOf("supplier_order_items"),
   orderBy: { createdAt: "asc" },
 });
 

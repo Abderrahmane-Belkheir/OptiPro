@@ -1,7 +1,7 @@
-// When the server turns the shop away (HTTP 401 with the code UNAUTHORIZED, from the table API or a photo upload), the app saves a very old expiry day in the
-// local license_expiry table and closes; the next start is blocked by the expired page. Nothing else does that. Service level (a local fake server answers) and
-// window level (the real app is refused while it syncs, then started again).
+// When the server turns the shop away (HTTP 401 with the code UNAUTHORIZED, from the table API or a photo upload), the app removes the settings file and closes;
+// the next start opens the setup page. Nothing else does that. Service level (a local fake server answers) and window level (the real app is refused while it syncs).
 const http = require("node:http");
+const fs = require("node:fs");
 const { sandbox, runScript, launchApp, recorder, sleep } = require("./helpers/app.cjs");
 
 const R = recorder();
@@ -17,7 +17,7 @@ const out = runScript(
   const http = require('node:http');
   const fs = require('node:fs');
   await p.tenant.create({ data: { key: 't1', host: 'h1', name: 'T1' } });
-  const { localCustomerService, localImageService, localLicenseService } = require(ROOT + '/dist/local/index.js');
+  const { localCustomerService, localImageService } = require(ROOT + '/dist/local/index.js');
   const guard = require(ROOT + '/dist/local/licenseGuard.js');
   let closed = 0;
   guard.setUnauthorizedHandler(() => { closed += 1; });
@@ -28,12 +28,11 @@ const out = runScript(
     const server = http.createServer((req, res) => { res.writeHead(status, { 'content-type': 'application/json' }); res.end(JSON.stringify(body)); });
     await new Promise((r) => server.listen(0, '127.0.0.1', r));
     fs.writeFileSync(process.env.OPTIPRO_CONFIG_FILE, 'server.url=http://127.0.0.1:' + server.address().port + '\\ntenant.key=t1\\n');
-    await p.licenseExpiry.deleteMany();
     guard.resetRefusalReport();
     closed = 0;
     if (how === 'table') await localCustomerService.insert({ name: 'C' + (++n) }).catch(() => {});
     else await localImageService.upload('frame', 'abc', PNG).catch(() => {});
-    results[name] = { saved: await localLicenseService.getExpiry(), closed };
+    results[name] = { settingsKept: fs.existsSync(process.env.OPTIPRO_CONFIG_FILE), closed };
     server.close();
   }
   for (const how of ['table', 'photo']) {
@@ -45,7 +44,7 @@ const out = runScript(
     await scenario(how + ' 403', 403, { error: 'x', code: 'ACTION_NOT_ALLOWED' }, how);
   }
   // a refusal twice closes the app once
-  await p.licenseExpiry.deleteMany(); guard.resetRefusalReport(); closed = 0;
+  guard.resetRefusalReport(); closed = 0;
   const again = http.createServer((req, res) => { res.writeHead(401, { 'content-type': 'application/json' }); res.end(JSON.stringify({ error: 'x', code: 'UNAUTHORIZED' })); });
   await new Promise((r) => again.listen(0, '127.0.0.1', r));
   fs.writeFileSync(process.env.OPTIPRO_CONFIG_FILE, 'server.url=http://127.0.0.1:' + again.address().port + '\\ntenant.key=t1\\n');
@@ -53,10 +52,10 @@ const out = runScript(
   await localCustomerService.insert({ name: 'Twice 2' }).catch(() => {});
   results.twice = { closed };
   // unreachable server (last: the sync stops trying for a while after it)
-  await p.licenseExpiry.deleteMany(); guard.resetRefusalReport(); closed = 0;
+  guard.resetRefusalReport(); closed = 0;
   fs.writeFileSync(process.env.OPTIPRO_CONFIG_FILE, 'server.url=http://127.0.0.1:9\\ntenant.key=t1\\n');
   await localCustomerService.insert({ name: 'Offline' }).catch(() => {});
-  results.unreachable = { saved: await localLicenseService.getExpiry(), closed };
+  results.unreachable = { settingsKept: fs.existsSync(process.env.OPTIPRO_CONFIG_FILE), closed };
   process.stdout.write('RESULT ' + JSON.stringify(results) + '\\n', () => process.exit(0));
 `,
 );
@@ -65,13 +64,13 @@ const results = JSON.parse(/RESULT (.*)/.exec(out)?.[1] ?? "{}");
 R.section("service");
 for (const how of ["table", "photo"]) {
   const refused = results[`${how} 401 UNAUTHORIZED`];
-  R.ck(refused?.saved === "1970-01-01" && refused?.closed === 1, `${how}: a 401 UNAUTHORIZED saves a very old expiry day (1970-01-01) and closes the app`, JSON.stringify(refused));
+  R.ck(refused?.settingsKept === false && refused?.closed === 1, `${how}: a 401 UNAUTHORIZED removes the settings file and closes the app`, JSON.stringify(refused));
   for (const other of ["401 without the code", "401 other code", "429", "500", "403"]) {
     const r = results[`${how} ${other}`];
-    R.ck(r?.saved === null && r?.closed === 0, `${how}: ${other} changes nothing`, JSON.stringify(r));
+    R.ck(r?.settingsKept === true && r?.closed === 0, `${how}: ${other} changes nothing`, JSON.stringify(r));
   }
 }
-R.ck(results.unreachable?.saved === null && results.unreachable?.closed === 0, "an unreachable server changes nothing");
+R.ck(results.unreachable?.settingsKept === true && results.unreachable?.closed === 0, "an unreachable server changes nothing");
 R.ck(results.twice?.closed === 1, "the app is closed once however many refusals come");
 
 // ---- window level
@@ -101,35 +100,17 @@ async function exited(port, ms = 12000) {
     return server;
   }
   const REFUSE = [401, { error: "A valid tenant key is required", code: "UNAUTHORIZED" }];
-  const savedDays = (b) => /SAVED (.*)/.exec(runScript(b, "console.log('SAVED ' + JSON.stringify((await p.licenseExpiry.findMany()).map((r) => r.expiresAt.toISOString().slice(0, 10))));"))?.[1];
   const pages = async (port) => (await (await fetch(`http://127.0.0.1:${port}/json`, { signal: AbortSignal.timeout(1500) })).json()).filter((x) => x.type === "page").map((x) => x.url);
 
-  R.section("window: refused at start");
-  {
-    const server = await fake(REFUSE, REFUSE);
-    const b = sandbox("op-refused-start-");
-    b.writeConfig([`server.url=http://127.0.0.1:${server.address().port}`, "tenant.key=t1"]);
-    runScript(b, "await p.licenseExpiry.create({ data: { id: 1, expiresAt: new Date('2030-01-01T00:00:00Z') } });");
-    const A = await launchApp(b, {}, EXPIRED);
-    try {
-      R.ck(await A.until("document.documentElement.dataset.ready === 'true' && typeof window.electronAPI === 'undefined'"), "the server refuses the key when the app starts: a page says so instead of the app");
-      R.ck(await A.val("/no longer accepts/.test(document.getElementById('expired-text').textContent)"), "and it tells the customer to contact support");
-      await sleep(1200);
-      R.ck(!(await pages(A.port)).some((u) => APP.test(u)), "the app's own window is not opened");
-    } finally {
-      await A.stop();
-    }
-    R.ck(savedDays(b) === '["1970-01-01"]', "and the very old day is saved in the local database", savedDays(b));
-    server.close();
-  }
-
+  // (a refusal at start, the first request of a run, is tested in expiry.window.test.cjs)
   R.section("window: refused later, while it syncs");
   {
     const server = await fake([200, { expiry: "2031-05-06" }], REFUSE);
     const b = sandbox("op-refused-sync-");
     b.writeConfig([`server.url=http://127.0.0.1:${server.address().port}`, "tenant.key=t1"]);
     runScript(b, "await p.tenant.create({ data: { key: 't1', host: 'h1', name: 'T1' } }); await p.customer.create({ data: { id: 'c1', name: 'Waiting to sync', tenantKey: 't1', synced: false } });");
-    const A = await launchApp(b, {}, APP);
+    // (the refusal comes within a moment of starting, and the app's own page is destroyed with it: the test attaches to the page that stays, the expired one)
+    const A = await launchApp(b, {}, EXPIRED);
     try {
       let shown = false;
       for (let i = 0; i < 60 && !shown; i++) {
@@ -141,7 +122,7 @@ async function exited(port, ms = 12000) {
     } finally {
       await A.stop();
     }
-    R.ck(savedDays(b) === '["1970-01-01"]', "and the very old day replaces the one the server had sent", savedDays(b));
+    R.ck(!fs.existsSync(b.config) && fs.existsSync(b.config + ".expired"), "and the settings file is renamed (config.properties.expired), not lost");
     server.close();
   }
   process.exit(R.done());
