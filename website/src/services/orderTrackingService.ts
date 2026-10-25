@@ -1,5 +1,5 @@
 import { API_ORIGIN } from '../config/apiOrigin';
-import type { TrackedOrder } from '../types/trackedOrder';
+import type { CustomerOrders } from '../types/trackedOrder';
 
 /** Why a search found nothing, in the words the page needs (it chooses the sentence). */
 export type TrackingFailure = 'invalid' | 'not-found' | 'too-many' | 'unavailable' | 'error';
@@ -18,20 +18,25 @@ export class TrackingError extends Error {
 }
 
 export interface OrderTrackingService {
-  /** Backed by `GET /api/orders/<tracking code>`. Throws a TrackingError. */
-  getOrder(code: string, signal?: AbortSignal): Promise<TrackedOrder>;
+  /** Backed by `POST /api/orders/lookup`: the orders of the customer with this full name and year of birth. Throws a TrackingError. */
+  findOrders(name: string, yearOfBirth: number, signal?: AbortSignal): Promise<CustomerOrders>;
 }
 
 export const apiOrderTrackingService: OrderTrackingService = {
-  async getOrder(code, signal) {
+  async findOrders(name, yearOfBirth, signal) {
     let res: Response;
     try {
-      res = await fetch(`${API_ORIGIN}/api/orders/${encodeURIComponent(code)}`, { signal, headers: { Accept: 'application/json' } });
+      res = await fetch(`${API_ORIGIN}/api/orders/lookup`, {
+        method: 'POST',
+        signal,
+        headers: { Accept: 'application/json', 'Content-Type': 'application/json' },
+        body: JSON.stringify({ name, yearOfBirth }),
+      });
     } catch (err) {
       if ((err as { name?: string })?.name === 'AbortError') throw err;
       throw new TrackingError('error'); // no network, no answer
     }
-    if (res.ok) return (await res.json()) as TrackedOrder;
+    if (res.ok) return (await res.json()) as CustomerOrders;
 
     const body = (await res.json().catch(() => null)) as { code?: string; retryAfterSeconds?: number } | null;
     if (res.status === 404) throw new TrackingError('not-found');

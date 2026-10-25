@@ -2,8 +2,8 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { apiOrderTrackingService, TrackingError, type TrackingFailure } from '../services/orderTrackingService';
 import type { TrackedOrder } from '../types/trackedOrder';
 
-/** A tracking code: 6 digits, 100000 to 999999. Checked here before anything is sent. */
-export const TRACKING_CODE = /^[1-9]\d{5}$/;
+/** A year of birth: 4 digits, after 1920 and before this year. Checked here before anything is sent. */
+export const isYearOfBirth = (year: number) => Number.isInteger(year) && year > 1920 && year < new Date().getFullYear();
 
 /** How long to wait before trying again when the server did not say. */
 const DEFAULT_WAIT_SECONDS = 15 * 60;
@@ -11,20 +11,20 @@ const DEFAULT_WAIT_SECONDS = 15 * 60;
 export type TrackingState =
   | { phase: 'idle' }
   | { phase: 'loading' }
-  | { phase: 'found'; order: TrackedOrder }
+  | { phase: 'found'; orders: TrackedOrder[] }
   | { phase: 'error'; failure: TrackingFailure };
 
 export interface OrderTracking {
   state: TrackingState;
-  /** When the server has refused this visitor for a while (too many codes that matched nothing): milliseconds left to wait, counting down; 0 when searching is allowed. */
+  /** When the server has refused this visitor for a while (too many asks that matched nobody): milliseconds left to wait, counting down; 0 when searching is allowed. */
   waitMs: number;
-  search(rawCode: string): Promise<void>;
+  search(rawName: string, rawYear: string): Promise<void>;
   clear(): void;
 }
 
 /**
- * Following an order with its tracking code. The page puts no limit on searches; only the server protects the codes (it refuses an address that keeps trying codes
- * that match nothing), and when it does the page says how long to wait.
+ * Finding a customer's orders with the full name and the year of birth. The page puts no limit on searches; only the server protects them (it refuses an address that keeps
+ * asking for customers that do not exist), and when it does the page says how long to wait.
  */
 export function useOrderTracking(): OrderTracking {
   const [state, setState] = useState<TrackingState>({ phase: 'idle' });
@@ -41,9 +41,10 @@ export function useOrderTracking(): OrderTracking {
 
   useEffect(() => () => inFlight.current?.abort(), []);
 
-  const search = useCallback(async (rawCode: string) => {
-    const code = rawCode.replace(/\s+/g, '');
-    if (!TRACKING_CODE.test(code)) {
+  const search = useCallback(async (rawName: string, rawYear: string) => {
+    const name = rawName.replace(/\s+/g, ' ').trim();
+    const year = /^\d{4}$/.test(rawYear.trim()) ? Number(rawYear.trim()) : NaN;
+    if (name.length < 2 || !isYearOfBirth(year)) {
       setState({ phase: 'error', failure: 'invalid' });
       return;
     }
@@ -52,8 +53,8 @@ export function useOrderTracking(): OrderTracking {
     inFlight.current = controller;
     setState({ phase: 'loading' });
     try {
-      const order = await apiOrderTrackingService.getOrder(code, controller.signal);
-      if (!controller.signal.aborted) setState({ phase: 'found', order });
+      const { orders } = await apiOrderTrackingService.findOrders(name, year, controller.signal);
+      if (!controller.signal.aborted) setState({ phase: 'found', orders });
     } catch (err) {
       if (controller.signal.aborted || (err as { name?: string })?.name === 'AbortError') return;
       const failure = err instanceof TrackingError ? err.failure : 'error';

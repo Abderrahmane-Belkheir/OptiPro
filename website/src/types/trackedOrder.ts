@@ -14,9 +14,8 @@ export interface TrackedOrderItem {
   totalCents: number;
 }
 
-/** Comes from `GET /api/orders/<tracking code>`. Amounts are in centimes. It never holds the prescription or anything private. */
+/** One order of `POST /api/orders/lookup`. Amounts are in centimes. It never holds the prescription or anything private. */
 export interface TrackedOrder {
-  trackingCode: number;
   /** The shop's own order number, like CMD-2026-0042. */
   number: string;
   status: OrderStatus;
@@ -32,5 +31,9 @@ export interface TrackedOrder {
   paidCents: number;
   remainingCents: number;
   items: TrackedOrderItem[];
-  shop: { name: string; phone: string | null; address: string | null };
+}
+
+/** The answer of `POST /api/orders/lookup`: the orders of the customer, newest first (empty when the customer has none). */
+export interface CustomerOrders {
+  orders: TrackedOrder[];
 }

@@ -8,6 +8,9 @@ export type FrameShape =
   | 'browline'
   | 'wayfarer';
 
+/** Who a frame is for, as the shop's server sends it (lower case). */
+export type FrameGender = 'male' | 'female' | 'unisex';
+
 export interface Frame {
   /** The shop's own short code, unique within the shop: how a product is known, addressed and printed on its label. The internal id never reaches the website. */
   code: string;
@@ -31,6 +34,8 @@ export interface Frame {
    */
   imageIds?: string[];
   shape?: FrameShape;
+  /** Who the frame is for; absent or null when the shop did not say. */
+  gender?: FrameGender | null;
   colors?: string[];
   inStock: boolean;
 }

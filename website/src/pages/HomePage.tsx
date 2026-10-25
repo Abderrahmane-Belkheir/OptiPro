@@ -1,10 +1,11 @@
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 import { BrandSelector } from '../components/brands/BrandSelector';
 import { CategorySelector } from '../components/categories/CategorySelector';
 import { Container } from '../components/common/Container';
 import { Reveal } from '../components/common/Reveal';
 import { SectionHeading } from '../components/common/SectionHeading';
 import { FrameGrid } from '../components/frames/FrameGrid';
+import { GenderFilter, type GenderFilterValue } from '../components/frames/GenderFilter';
 import { AccessoriesSection } from '../components/home/AccessoriesSection';
 import { BenefitsSection } from '../components/home/BenefitsSection';
 import { BrandStorySection } from '../components/home/BrandStorySection';
@@ -25,6 +26,7 @@ export function HomePage() {
   const { categories, brands, isLoading: catalogLoading, error: catalogError } = useCatalog();
   const [selectedCategory, setSelectedCategory] = useState<string | null>(null);
   const [selectedBrand, setSelectedBrand] = useState<string | null>(null);
+  const [selectedGender, setSelectedGender] = useState<GenderFilterValue>('all');
   const tracking = useOrderTracking();
 
   // Selection state stays name-based (for display/translation), but the frames API now filters
@@ -36,6 +38,9 @@ export function HomePage() {
     selectedCategoryId,
     selectedBrandId,
   );
+
+  // The frames of the selection are fetched by category and brand only; the gender filter narrows what was loaded (a frame with no gender is only in All).
+  const shownFrames = useMemo(() => (selectedGender === 'all' ? frames : frames.filter((frame) => frame.gender === selectedGender)), [frames, selectedGender]);
 
   const displayedCategory = selectedCategory ? translateCategory(selectedCategory, locale) : null;
 
@@ -61,6 +66,7 @@ export function HomePage() {
           </Reveal>
 
           <Reveal className="flex flex-col gap-6">
+            <GenderFilter selected={selectedGender} onSelect={setSelectedGender} />
             <CategorySelector
               categories={categories}
               selectedCategory={selectedCategory}
@@ -78,7 +84,9 @@ export function HomePage() {
           </Reveal>
 
           <FrameGrid
-            frames={frames}
+            frames={shownFrames}
+            genderLabel={selectedGender === 'all' ? null : t.frames.genders[selectedGender]}
+            hasFramesBeforeFilter={frames.length > 0}
             brandName={selectedBrand ?? ''}
             isLoading={framesLoading}
             error={framesError}

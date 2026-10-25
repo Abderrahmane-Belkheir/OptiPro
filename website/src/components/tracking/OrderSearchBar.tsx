@@ -8,26 +8,28 @@ interface OrderSearchBarProps {
 }
 
 /**
- * The order search: a visitor types the 6-digit code from their receipt. It sits in the hero, so it is among the first things seen on the site. The page puts no limit
- * on searches; if the server refuses the visitor for a while (too many codes that matched nothing), the bar says how long to wait.
+ * The order search: a visitor types their full name and year of birth. It sits in the hero, so it is among the first things seen on the site. The page puts no limit
+ * on searches; if the server refuses the visitor for a while (too many asks that matched nobody), the bar says how long to wait.
  */
 export function OrderSearchBar({ tracking }: OrderSearchBarProps) {
   const t = useTranslations();
   const inputId = useId();
+  const yearId = useId();
   const messageId = useId();
-  const [code, setCode] = useState('');
+  const [name, setName] = useState('');
+  const [year, setYear] = useState('');
   const { state, waitMs } = tracking;
   const loading = state.phase === 'loading';
   const blocked = waitMs > 0;
   const minutes = Math.max(1, Math.ceil(waitMs / 60000));
 
-  function onChange(event: ChangeEvent<HTMLInputElement>) {
-    setCode(event.target.value.replace(/\D/g, '').slice(0, 6)); // digits only, at most 6
+  function onYearChange(event: ChangeEvent<HTMLInputElement>) {
+    setYear(event.target.value.replace(/\D/g, '').slice(0, 4)); // digits only, at most 4
   }
 
   function onSubmit(event: FormEvent) {
     event.preventDefault();
-    if (!loading) void tracking.search(code);
+    if (!loading) void tracking.search(name, year);
   }
 
   let message: string | null = null;
@@ -61,22 +63,43 @@ export function OrderSearchBar({ tracking }: OrderSearchBarProps) {
       <p className="mt-1 text-sm text-paper/80">{t.tracking.hint}</p>
 
       <div className="mt-4 flex flex-col gap-3 sm:flex-row">
-        <input
-          id={inputId}
-          name="trackingCode"
-          type="text"
-          inputMode="numeric"
-          autoComplete="off"
-          spellCheck={false}
-          maxLength={6}
-          pattern="[0-9]{6}"
-          value={code}
-          onChange={onChange}
-          placeholder={t.tracking.inputPlaceholder}
-          aria-describedby={messageId}
-          aria-invalid={state.phase === 'error' ? true : undefined}
-          className="min-w-0 flex-1 border border-paper/40 bg-paper px-4 py-3.5 font-sans text-lg tracking-[0.35em] text-charcoal placeholder:tracking-normal placeholder:text-charcoal-soft/70"
-        />
+        <div className="flex min-w-0 flex-1 flex-col gap-3 sm:flex-row">
+          <label htmlFor={inputId} className="sr-only">
+            {t.tracking.nameLabel}
+          </label>
+          <input
+            id={inputId}
+            name="fullName"
+            type="text"
+            autoComplete="name"
+            maxLength={200}
+            value={name}
+            onChange={(event) => setName(event.target.value)}
+            placeholder={t.tracking.namePlaceholder}
+            aria-describedby={messageId}
+            aria-invalid={state.phase === 'error' ? true : undefined}
+            className="min-w-0 flex-1 border border-paper/40 bg-paper px-4 py-3.5 font-sans text-base text-charcoal placeholder:text-charcoal-soft/70"
+          />
+          <label htmlFor={yearId} className="sr-only">
+            {t.tracking.yearLabel}
+          </label>
+          <input
+            id={yearId}
+            name="yearOfBirth"
+            type="text"
+            inputMode="numeric"
+            autoComplete="bday-year"
+            spellCheck={false}
+            maxLength={4}
+            pattern="[0-9]{4}"
+            value={year}
+            onChange={onYearChange}
+            placeholder={t.tracking.yearPlaceholder}
+            aria-describedby={messageId}
+            aria-invalid={state.phase === 'error' ? true : undefined}
+            className="w-full border border-paper/40 bg-paper px-4 py-3.5 font-sans text-base text-charcoal placeholder:text-charcoal-soft/70 sm:w-36"
+          />
+        </div>
         <button
           type="submit"
           disabled={loading || blocked}

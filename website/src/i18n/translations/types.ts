@@ -27,6 +27,10 @@ export interface Translations {
     showing: (brand: string, category: string) => string;
     categoryGroupLabel: string;
     brandGroupLabel: string;
+    genderGroupLabel: string;
+    genders: { all: string; male: string; female: string; unisex: string };
+    /** Shown when the sex filter hides every frame of the selection: the label of the chosen sex. */
+    noFramesForGender: (gender: string) => string;
     loadingCategories: string;
     loadingBrands: string;
     loadingFrames: string;
@@ -65,8 +69,10 @@ export interface Translations {
     eyebrow: string;
     title: string;
     hint: string;
-    inputLabel: string;
-    inputPlaceholder: string;
+    nameLabel: string;
+    namePlaceholder: string;
+    yearLabel: string;
+    yearPlaceholder: string;
     submit: string;
     searching: string;
     errors: {
@@ -74,10 +80,12 @@ export interface Translations {
       notFound: string;
       unavailable: string;
       error: string;
-      /** The visitor has used the searches allowed (here, or as the server counts them): when to try again. */
+      /** The visitor has used the searches allowed (as the server counts them): when to try again. */
       limit: (minutes: number) => string;
     };
     result: {
+      ordersHeading: string;
+      noOrders: string;
       orderLabel: string;
       searchAnother: string;
       placedOn: string;
@@ -97,8 +105,6 @@ export interface Translations {
       paid: string;
       remaining: string;
       paidInFull: string;
-      shopHeading: string;
-      call: string;
     };
   };
   footer: {

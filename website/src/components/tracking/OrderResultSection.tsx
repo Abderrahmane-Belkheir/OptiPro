@@ -1,4 +1,4 @@
-import { Check, MapPin, Phone, RotateCcw } from 'lucide-react';
+import { Check, RotateCcw } from 'lucide-react';
 import { useEffect, useRef } from 'react';
 import type { OrderTracking } from '../../hooks/useOrderTracking';
 import { useLocale } from '../../i18n/useLocale';
@@ -15,30 +15,56 @@ interface OrderResultSectionProps {
   tracking: OrderTracking;
 }
 
-/** The order that was found, laid out so a customer sees at once where it is, what is in it and what is left to pay. Nothing is shown until an order is found. */
+/** The orders of the customer that was found, each laid out so the customer sees at once where it is, what is in it and what is left to pay. Nothing is shown until a search has found the customer. */
 export function OrderResultSection({ tracking }: OrderResultSectionProps) {
+  const t = useTranslations();
   const { state } = tracking;
   const headingRef = useRef<HTMLHeadingElement>(null);
-  const found = state.phase === 'found' ? state.order : null;
+  const emptyRef = useRef<HTMLParagraphElement>(null);
+  const found = state.phase === 'found' ? state.orders : null;
 
   // when an order is found, bring it into view and move the focus to it
   useEffect(() => {
     if (!found) return;
-    headingRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
-    headingRef.current?.focus({ preventScroll: true });
+    const target = headingRef.current ?? emptyRef.current;
+    target?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    target?.focus({ preventScroll: true });
   }, [found]);
 
   if (!found) return null;
   return (
-    <section id="track" aria-label={found.number} className="bg-paper" data-order-result="">
-      <Container className="py-14 sm:py-20">
-        <OrderResult order={found} headingRef={headingRef} onClear={tracking.clear} />
+    <section id="track" aria-label={t.tracking.result.ordersHeading} className="bg-paper" data-order-result="">
+      <Container className="flex flex-col gap-8 py-14 sm:py-20">
+        {found.length === 0 && (
+          <div className="flex flex-wrap items-center justify-between gap-4 border border-line bg-ivory p-6 sm:p-10">
+            <p ref={emptyRef} tabIndex={-1} className="font-display text-2xl text-charcoal outline-none" data-no-orders="">
+              {t.tracking.result.noOrders}
+            </p>
+            <ClearButton onClear={tracking.clear} label={t.tracking.result.searchAnother} />
+          </div>
+        )}
+        {found.map((order, index) => (
+          <OrderResult key={order.number} order={order} headingRef={index === 0 ? headingRef : undefined} onClear={tracking.clear} />
+        ))}
       </Container>
     </section>
   );
 }
 
-function OrderResult({ order, headingRef, onClear }: { order: TrackedOrder; headingRef: React.RefObject<HTMLHeadingElement | null>; onClear: () => void }) {
+function ClearButton({ onClear, label }: { onClear: () => void; label: string }) {
+  return (
+    <button
+      type="button"
+      onClick={onClear}
+      className="inline-flex items-center gap-2 border border-line px-4 py-2.5 text-xs font-semibold uppercase tracking-wide text-charcoal-soft transition-colors hover:border-charcoal hover:text-charcoal"
+    >
+      <RotateCcw size={14} aria-hidden="true" />
+      {label}
+    </button>
+  );
+}
+
+function OrderResult({ order, headingRef, onClear }: { order: TrackedOrder; headingRef?: React.RefObject<HTMLHeadingElement | null>; onClear: () => void }) {
   const t = useTranslations();
   const { locale } = useLocale();
   const r = t.tracking.result;
@@ -61,14 +87,7 @@ function OrderResult({ order, headingRef, onClear }: { order: TrackedOrder; head
             </h2>
             <p className="max-w-xl text-charcoal-soft [overflow-wrap:anywhere]">{status.description}</p>
           </div>
-          <button
-            type="button"
-            onClick={onClear}
-            className="inline-flex items-center gap-2 border border-line px-4 py-2.5 text-xs font-semibold uppercase tracking-wide text-charcoal-soft transition-colors hover:border-charcoal hover:text-charcoal"
-          >
-            <RotateCcw size={14} aria-hidden="true" />
-            {r.searchAnother}
-          </button>
+          <ClearButton onClear={onClear} label={r.searchAnother} />
         </div>
 
         {cancelled ? (
@@ -121,23 +140,6 @@ function OrderResult({ order, headingRef, onClear }: { order: TrackedOrder; head
                 )}
               </div>
             </dl>
-          </div>
-
-          <div className="flex flex-col gap-3 text-sm" data-order-shop="">
-            <h3 className="font-display text-2xl text-charcoal">{r.shopHeading}</h3>
-            <p className="font-semibold text-charcoal [overflow-wrap:anywhere]">{order.shop.name}</p>
-            {order.shop.address && (
-              <p className="flex items-start gap-2 text-charcoal-soft [overflow-wrap:anywhere]">
-                <MapPin size={16} className="mt-0.5 shrink-0 text-brass" aria-hidden="true" />
-                {order.shop.address}
-              </p>
-            )}
-            {order.shop.phone && (
-              <a href={`tel:${order.shop.phone.replace(/[^\d+]/g, '')}`} className="link-underline inline-flex w-fit items-center gap-2 text-charcoal">
-                <Phone size={16} className="text-brass" aria-hidden="true" />
-                {r.call}: {order.shop.phone}
-              </a>
-            )}
           </div>
         </aside>
       </div>

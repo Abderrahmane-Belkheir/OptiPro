@@ -9,9 +9,13 @@ interface FrameGridProps {
   isLoading: boolean;
   error: boolean;
   hasSelection: boolean;
+  /** The label of the chosen gender when the gender filter is on (not All), else null. */
+  genderLabel?: string | null;
+  /** Whether the selection has frames before the gender filter is applied. */
+  hasFramesBeforeFilter?: boolean;
 }
 
-export function FrameGrid({ frames, brandName, isLoading, error, hasSelection }: FrameGridProps) {
+export function FrameGrid({ frames, brandName, isLoading, error, hasSelection, genderLabel = null, hasFramesBeforeFilter = false }: FrameGridProps) {
   const t = useTranslations();
 
   if (!hasSelection) {
@@ -27,6 +31,7 @@ export function FrameGrid({ frames, brandName, isLoading, error, hasSelection }:
   }
 
   if (frames.length === 0) {
+    if (genderLabel && hasFramesBeforeFilter) return <StatusMessage>{t.frames.noFramesForGender(genderLabel)}</StatusMessage>;
     return <StatusMessage>{t.frames.noFramesForSelection(brandName)}</StatusMessage>;
   }
 
