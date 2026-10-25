@@ -12,10 +12,10 @@ import { createRegisterRouter } from './lib/registerApi.js';
 import { createLicenseGate } from './lib/licenseGate.js';
 import { createExpiryRouter } from './lib/expiryApi.js';
 import { createInfosRouter } from './lib/infosApi.js';
-import { createTrackRouter } from './lib/trackApi.js';
-import { TRACK_SQL } from './lib/trackCore.js';
 import { deleteProductImage, insertProductImage, productImageExists } from './lib/productImageStore.js';
 import { prisma } from './lib/prismaClient.js';
+import { createLookupRouter } from './lib/lookupApi.js';
+import { LOOKUP_SQL } from './lib/lookupCore.js';
 import { resolveTenantKeyByHost, warnIfRlsDisabled, withTenant } from './lib/tenantContext.js';
 import { getAccessories, getAccessoryByCode } from './services/accessoryService.js';
 import { getCatalog } from './services/catalogService.js';
@@ -146,16 +146,15 @@ app.use(
   }),
 );
 
-// GET /api/orders/:tracking_id -> follow an order with its 6-digit tracking code (public; the shop is the request's host): its status and dates, its totals, its lines and the shop's
-// name and contact. Never the prescription, the measurements, the notes, the customer or what the lines cost the shop. See lib/trackApi.js.
+// POST /api/orders/lookup (body: { name, yearOfBirth }) -> the orders of the customer with that full name and year of birth, each with its lines, the sum of its payments and its total
+// (public; the shop is the request's host). Never the prescription, the measurements, the notes, the customer's details or what the lines cost the shop. See lib/lookupApi.js.
 app.use(
   '/api/orders',
-  createTrackRouter({
-    findTrackedOrder: async (host, code) => {
+  createLookupRouter({
+    findCustomerOrders: async (host, name, yearOfBirth) => {
       const tenantKey = await resolveTenantKeyByHost(host);
-      if (!tenantKey) return null;
-      const rows = await withTenant(tenantKey, (tx) => tx.$queryRawUnsafe(TRACK_SQL, code));
-      return rows[0] ?? null;
+      if (!tenantKey) return [];
+      return withTenant(tenantKey, (tx) => tx.$queryRawUnsafe(LOOKUP_SQL, name, yearOfBirth));
     },
   }),
 );
@@ -165,7 +164,7 @@ app.get('/api/catalog', async (req, res) => {
   res.json(await getCatalog(req.hostname));
 });
 
-// GET /api/frames?brandId=&categoryId= -> { code, name, brand, category, price?, currency?, images: string[] (photo CODES), imageIds: string[], shape?, colors?, inStock }[]
+// GET /api/frames?brandId=&categoryId= -> { code, name, brand, category, price?, currency?, images: string[] (photo CODES), imageIds: string[], shape?, gender? (male | female | unisex), colors?, inStock }[]
 app.get('/api/frames', async (req, res) => {
   const { brandId, categoryId } = req.query;
   if (!brandId || !categoryId) {
@@ -175,7 +174,7 @@ app.get('/api/frames', async (req, res) => {
   res.json(await getFrames({ host: req.hostname, brandId, categoryId }));
 });
 
-// GET /api/frames/:code -> { code, name, brand, category, price?, currency?, images: string[] (photo CODES), imageIds: string[], shape?, colors?, inStock } (404 if not found)
+// GET /api/frames/:code -> { code, name, brand, category, price?, currency?, images: string[] (photo CODES), imageIds: string[], shape?, gender? (male | female | unisex), colors?, inStock } (404 if not found)
 // A frame is known by its code, unique within the shop (the host's shop: two shops can have the same code), never by its internal id.
 // Only needed when a frame's link is opened directly, before the list that contains it was loaded.
 app.get('/api/frames/:code', async (req, res) => {

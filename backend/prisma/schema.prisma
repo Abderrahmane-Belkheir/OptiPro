@@ -48,6 +48,8 @@ model Frame {
   currency String?
   images   String[]
   shape    String?
+  /// Who the frame is for: male | female | unisex (lower case; the column's CHECK refuses anything else). Optional.
+  gender   String?
   colors   String[]
   stock    Int      @default(0)
 

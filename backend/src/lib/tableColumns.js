@@ -104,6 +104,11 @@ export const TABLE_COLUMNS = {
         "column": "cost_price",
         "type": "float"
       },
+      "gender": {
+        "column": "gender",
+        "type": "text",
+        "max": 1000
+      },
       "code": {
         "column": "code",
         "type": "text",
@@ -219,9 +224,10 @@ export const TABLE_COLUMNS = {
         "type": "datetime",
         "immutable": true
       },
-      "dateOfBirth": {
-        "column": "date_of_birth",
-        "type": "datetime"
+      "yearOfBirth": {
+        "column": "year_of_birth",
+        "type": "int",
+        "required": true
       }
     },
     "parents": {}
@@ -711,10 +717,6 @@ export const TABLE_COLUMNS = {
       "fittingHeightLeft": {
         "column": "fitting_height_left",
         "type": "float"
-      },
-      "trackingCode": {
-        "column": "tracking_code",
-        "type": "int"
       },
       "createdAt": {
         "column": "created_at",

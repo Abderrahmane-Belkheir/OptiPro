@@ -9,8 +9,8 @@
 // A frame's `images` (older photo codes) go out as codes only, as before; `imageIds` lists the ids of the photos
 // the shop uploaded (product_images), which the website fetches with GET /api/images/<id>.
 
+import { LOOKUP_SQL } from './lookupCore.js';
 import { sqlState } from './http.js';
-import { TRACK_SQL } from './trackCore.js';
 
 // ---- the tenant -------------------------------------------------------------------------------
 
@@ -68,10 +68,10 @@ export function toImageCode(stored) {
 }
 const toImageCodes = (stored) => (Array.isArray(stored) ? stored : []).map(toImageCode).filter(Boolean);
 
-/** The order of the shop at this host with this tracking code, with its lines and the shop's contact (the row of TRACK_SQL), or null. ONE request to Neon. */
-export async function getTrackedOrder(sql, host, code) {
-  const [, rows] = await sql.transaction([tenantFromHost(sql, host), sql.query(TRACK_SQL, [code])]);
-  return rows[0] ?? null;
+/** The rows of LOOKUP_SQL: the customers of the shop at this host with this full name and year of birth, with their orders (empty when none matches). ONE request to Neon. */
+export async function getCustomerOrders(sql, host, name, yearOfBirth) {
+  const [, rows] = await sql.transaction([tenantFromHost(sql, host), sql.query(LOOKUP_SQL, [name, yearOfBirth])]);
+  return rows;
 }
 
 export async function getCatalog(sql, host) {
@@ -109,7 +109,7 @@ export function decodeCursor(cursor) {
 
 // One frame/accessory with its photo ids. A product goes out with its CODE (unique per shop), never its internal id; one without a code is not offered. `{where}` is extra conditions on the product `p`; params start at $2 ($1 is the host).
 const FRAME_SELECT = `
-  SELECT p.code, p.name, p.price, p.currency, p.images, p.shape, p.colors, p.stock, b.name AS brand, c.name AS category,
+  SELECT p.code, p.name, p.price, p.currency, p.images, p.shape, p.gender, p.colors, p.stock, b.name AS brand, c.name AS category,
          COALESCE(json_agg(pi.id::text ORDER BY pi.id) FILTER (WHERE pi.id IS NOT NULL), '[]') AS "imageIds"
     FROM frames p
     JOIN brands b ON b.id = p.brand_id

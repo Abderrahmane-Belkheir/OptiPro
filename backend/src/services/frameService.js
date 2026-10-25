@@ -11,6 +11,7 @@ const frameSelect = (tenantKey) => ({
   currency: true,
   images: true,
   shape: true,
+  gender: true,
   colors: true,
   stock: true,
   brand: { select: { name: true } },
