@@ -16,7 +16,7 @@ runScript(
   `
   await p.tenant.create({ data: { key: 't1', host: 'h1', name: 'T1' } });
   const S = { tenantKey: 't1', synced: true };
-  await p.customer.create({ data: { id: 'c1', name: 'Amina Benali', ...S } });
+  await p.customer.create({ data: { yearOfBirth: 1990, id: 'c1', name: 'Amina Benali', ...S } });
   await p.lens.create({ data: { id: 'l1', name: 'Progressive 1.6', brand: 'Essilor', design: 'progressive', material: 'organic', priceCents: 1400000, ...S } });
   const order = async (id, number, status, lens) => {
     await p.order.create({ data: { id, number, status, customerId: 'c1', orderedAt: new Date(), totalCents: 100000, ...S } });

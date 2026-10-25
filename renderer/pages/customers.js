@@ -157,7 +157,7 @@
     ["Phone", ""],
     ["Email", ""],
     ["Address", "col-address"],
-    ["Date of birth", "col-dob"],
+    ["Birth year", "col-dob"],
     ["Registered", "col-registered"],
   ];
 
@@ -197,7 +197,7 @@
       h("td", { class: "cell-number" }, customer.phone ? customer.phone : h("span", { class: "cell-empty" }, "—")),
       h("td", null, text(customer.email)),
       h("td", { class: "col-address" }, text(customer.address)),
-      h("td", { class: "cell-number col-dob" }, customer.dateOfBirth ? formatDate(customer.dateOfBirth) : h("span", { class: "cell-empty" }, "—")),
+      h("td", { class: "cell-number col-dob" }, customer.yearOfBirth ? String(customer.yearOfBirth) : h("span", { class: "cell-empty" }, "—")),
       h("td", { class: "cell-number cell-secondary col-registered" }, formatDate(customer.createdAt)),
       h("td", { class: "col-actions" }, menuButton),
     );
@@ -320,20 +320,19 @@
     { name: "name", label: "Full name", required: true, autocomplete: "off", wide: true },
     { name: "phone", label: "Phone", type: "tel" },
     { name: "email", label: "Email", type: "email" },
-    { name: "dateOfBirth", label: "Date of birth", type: "date" },
+    { name: "yearOfBirth", label: "Birth year", type: "number", required: true },
     { name: "address", label: "Address", wide: true },
     { name: "notes", label: "Notes", textarea: true, wide: true },
   ];
 
-  const toInputDate = (iso) => (iso ? iso.slice(0, 10) : "");
-  const todayInput = () => new Date().toISOString().slice(0, 10);
 
   /** Typing checks only; whatever the service rejects is shown from its own message. */
   function validate(values) {
     const errors = {};
     if (!values.name) errors.name = "Enter the customer's name.";
     if (values.email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(values.email)) errors.email = "Enter a valid email address, like name@example.com.";
-    if (values.dateOfBirth && values.dateOfBirth > todayInput()) errors.dateOfBirth = "The date of birth can't be in the future.";
+    if (!values.yearOfBirth) errors.yearOfBirth = "Enter the customer's birth year.";
+    else if (!/^\d{4}$/.test(values.yearOfBirth) || Number(values.yearOfBirth) <= 1920 || Number(values.yearOfBirth) >= new Date().getFullYear()) errors.yearOfBirth = `Enter a year after 1920 and before ${new Date().getFullYear()}.`;
     return errors;
   }
 
@@ -346,8 +345,8 @@
       const id = `customer-${f.name}`;
       const control = f.textarea
         ? h("textarea", { class: "input", id, name: f.name, rows: 3, "aria-describedby": `${id}-error` })
-        : h("input", { class: "input", id, name: f.name, type: f.type ?? "text", autocomplete: f.autocomplete ?? "off", max: f.type === "date" ? todayInput() : false, "aria-describedby": `${id}-error` });
-      control.value = f.name === "dateOfBirth" ? toInputDate(customer?.dateOfBirth) : (customer?.[f.name] ?? "");
+        : h("input", { class: "input", id, name: f.name, type: f.type ?? "text", autocomplete: f.autocomplete ?? "off", min: f.type === "number" ? 1921 : false, max: f.type === "number" ? new Date().getFullYear() - 1 : false, "aria-describedby": `${id}-error` });
+      control.value = customer?.[f.name] ?? "";
       if (f.required) control.setAttribute("required", "");
       inputs[f.name] = control;
       errorEls[f.name] = h("p", { class: "field__error", id: `${id}-error`, hidden: true });
@@ -419,7 +418,7 @@
         email: values.email || null,
         address: values.address || null,
         notes: values.notes || null,
-        dateOfBirth: values.dateOfBirth ? `${values.dateOfBirth}T00:00:00.000Z` : null,
+        yearOfBirth: Number(values.yearOfBirth),
       };
 
       busy = true;
@@ -440,9 +439,9 @@
           dialog.close();
           toast("This customer no longer exists.", "error");
           await load();
-        } else if (/dateOfBirth/.test(message)) {
-          setFieldError("dateOfBirth", "That date isn't valid.");
-          inputs.dateOfBirth.focus();
+        } else if (/yearOfBirth/.test(message)) {
+          setFieldError("yearOfBirth", "That year isn't valid.");
+          inputs.yearOfBirth.focus();
         } else {
           showBanner(message);
         }

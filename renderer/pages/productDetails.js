@@ -34,7 +34,7 @@
       subtitle: (p) => [p.brandName, p.categoryName].filter(Boolean).join(" · "),
       rows: (p, row, price) => {
         const size = [p.eyeSize, p.bridge, p.templeLength].every((v) => v !== null) ? `${p.eyeSize}-${p.bridge}-${p.templeLength} mm` : null;
-        return [row("brand", "Brand", p.brandName), row("category", "Category", p.categoryName), row("reference", "Reference", p.reference), row("shape", "Shape", p.shape), row("colors", "Colors", p.colors.join(" / ")), row("size", "Size (eye-bridge-temple)", size), row("price", "Price", price(p.price, p.currency)), row("cost", "Cost price", price(p.costPrice, p.currency))];
+        return [row("brand", "Brand", p.brandName), row("category", "Category", p.categoryName), row("reference", "Reference", p.reference), row("shape", "Shape", p.shape), row("gender", "Sex", ({ female: "Female", male: "Male", unisex: "Unisex" })[p.gender] ?? null), row("colors", "Colors", p.colors.join(" / ")), row("size", "Size (eye-bridge-temple)", size), row("price", "Price", price(p.price, p.currency)), row("cost", "Cost price", price(p.costPrice, p.currency))];
       },
     },
     accessories: {

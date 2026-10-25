@@ -112,7 +112,7 @@
 
   const profileButton = document.getElementById("profile-button");
   const profileMenu = document.getElementById("profile-menu");
-  const menuItems = [...profileMenu.querySelectorAll('[role="menuitem"]')];
+  const menuItems = [...profileMenu.querySelectorAll('[role="menuitem"], [role="menuitemradio"]')]; // (the languages: the menu holds nothing else)
 
   function openMenu(focusFirst) {
     profileMenu.hidden = false;
@@ -148,7 +148,7 @@
     if (event.key !== "Tab") event.preventDefault();
   });
 
-  // The entries don't do anything yet; choosing one just closes the menu.
+  // Choosing a language closes the menu (the language file reloads the window with the new language: i18n.js).
   for (const item of menuItems) item.addEventListener("click", () => closeMenu(true));
 
   document.addEventListener("keydown", (event) => {

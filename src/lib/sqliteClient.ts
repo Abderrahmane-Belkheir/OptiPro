@@ -45,7 +45,7 @@ const ADDED_COLUMNS: { table: string; column: string; definition: string }[] = [
   { table: "accessories", column: "cost_price", definition: "REAL" },
   { table: "frames", column: "code", definition: "TEXT" },
   { table: "accessories", column: "code", definition: "TEXT" },
-  { table: "customers", column: "date_of_birth", definition: "DATETIME" },
+  { table: "customers", column: "year_of_birth", definition: "INTEGER NOT NULL DEFAULT 2006" },
   { table: "lenses", column: "polarized", definition: "BOOLEAN NOT NULL DEFAULT false" },
   { table: "lenses", column: "tint", definition: "TEXT" },
   { table: "lenses", column: "sphere_min", definition: "REAL" },
@@ -72,15 +72,29 @@ const ADDED_COLUMNS: { table: string; column: string; definition: string }[] = [
   { table: "license_expiry", column: "synced", definition: "BOOLEAN NOT NULL DEFAULT true" },
   { table: "order_items", column: "unit_cost_cents", definition: "INTEGER" },
   { table: "supplier_order_items", column: "used", definition: "BOOLEAN NOT NULL DEFAULT false" },
-  { table: "orders", column: "tracking_code", definition: "INTEGER" },
+  { table: "frames", column: "gender", definition: "TEXT" },
 ];
 
 /** Columns an older version made that are no longer used (they would refuse a row that does not fill them). Dropped once, when the table still has them. */
 const OBSOLETE_COLUMNS: { table: string; column: string }[] = [
   { table: "license_expiry", column: "expires_at" }, // the licence's end day is no longer kept here: the server alone knows it
+  { table: "orders", column: "tracking_code" }, // the random tracking code is gone (its unique index is dropped first: see dropObsoleteColumns)
+  { table: "customers", column: "date_of_birth" }, // replaced by year_of_birth (copied by keepYearsOfBirth first)
 ];
 
+/** A customer's birth year, taken from the date of birth an older version kept (only years the rule below accepts). Runs before that column is dropped. */
+function keepYearsOfBirth(db: Database.Database): void {
+  const columns = (db.prepare('PRAGMA table_info("customers")').all() as { name: string }[]).map((c) => c.name);
+  if (!columns.includes("year_of_birth")) return;
+  if (!columns.includes("date_of_birth")) return void db.exec('UPDATE "customers" SET "year_of_birth" = 2006, "synced" = false WHERE "year_of_birth" IS NULL'); // (a customer that got a year is sent again)
+  const year = `CAST(CASE WHEN typeof("date_of_birth") = 'text' THEN strftime('%Y', "date_of_birth") ELSE strftime('%Y', "date_of_birth" / 1000, 'unixepoch') END AS INTEGER)`;
+  db.exec(`UPDATE "customers" SET "year_of_birth" = ${year} WHERE "date_of_birth" IS NOT NULL AND ${year} > 1920 AND ${year} < CAST(strftime('%Y', 'now') AS INTEGER)`);
+  db.exec('UPDATE "customers" SET "year_of_birth" = 2006 WHERE "year_of_birth" IS NULL'); // the customers that have no year yet: 2006
+  db.exec('UPDATE "customers" SET "synced" = false'); // every customer got a year (its own or 2006): all are sent again, the server needs it
+}
+
 function dropObsoleteColumns(db: Database.Database): void {
+  db.exec('DROP INDEX IF EXISTS "orders_tenant_key_tracking_code_key"'); // a column with an index cannot be dropped
   for (const { table, column } of OBSOLETE_COLUMNS) {
     const existing = db.prepare(`PRAGMA table_info("${table}")`).all() as { name: string }[];
     if (existing.some((c) => c.name === column)) db.exec(`ALTER TABLE "${table}" DROP COLUMN "${column}"`);
@@ -218,6 +232,15 @@ function protectFromDeletes(db: Database.Database): void {
   for (const table of NEVER_DELETED) {
     db.exec(`CREATE TRIGGER IF NOT EXISTS "${table}_never_deleted" BEFORE DELETE ON "${table}" BEGIN SELECT RAISE(ABORT, 'Rows of ${table} are never deleted: cancel or void them instead.'); END;`);
   }
+  // A birth year is after 1920 and before this year. (A CHECK cannot know the current year; a trigger can, and it also covers a table that was altered.)
+  for (const event of ["INSERT", "UPDATE OF \"year_of_birth\""]) {
+    const name = event === "INSERT" ? "customers_year_of_birth_insert" : "customers_year_of_birth_update";
+    db.exec(`DROP TRIGGER IF EXISTS "${name}"`);
+    db.exec(
+      `CREATE TRIGGER "${name}" BEFORE ${event} ON "customers" WHEN NEW."year_of_birth" IS NULL OR (typeof(NEW."year_of_birth") <> 'integer' OR NEW."year_of_birth" <= 1920 OR NEW."year_of_birth" >= CAST(strftime('%Y', 'now') AS INTEGER)) ` +
+        `BEGIN SELECT RAISE(ABORT, 'year_of_birth is needed: a whole year after 1920 and before this year.'); END;`,
+    );
+  }
   db.exec(
     `CREATE TRIGGER IF NOT EXISTS "prescriptions_used_not_changed" BEFORE UPDATE OF ${PRESCRIPTION_RECORD_COLUMNS.map((c) => `"${c}"`).join(", ")} ON "prescriptions" ` +
       `WHEN EXISTS (SELECT 1 FROM "orders" WHERE "prescription_id" = OLD."id") BEGIN SELECT RAISE(ABORT, 'A prescription that an order uses cannot be changed: create a new one instead.'); END;`,
@@ -275,6 +298,7 @@ function ensureDatabaseExists(dbPath: string): void {
     addMissingColumns(db);
     // A rebuilt table loses its indexes with the old table: creating the missing ones again (it is idempotent) puts them back.
     if (rebuildTablesWithChangedForeignKeys(db, initSql).length > 0) db.exec(idempotentSql);
+    keepYearsOfBirth(db);
     dropObsoleteColumns(db);
     protectFromDeletes(db);
     applyWaitingSupplierLines(db);

@@ -12,8 +12,8 @@ export const API_METHODS = {
   categories: ["list", "get"],
   /** Every category and brand as { id, name }, in one call: catalog.getCategoriesAndBrands(). */
   catalog: ["getCategoriesAndBrands"],
-  frames: ["list", "search", "searchWithPhotos", "details", "listWithPhotos", "create", "edit", "delete", "get", "insert", "insertMany", "update", "remove"],
-  accessories: ["list", "search", "details", "listWithPhotos", "create", "edit", "delete", "get", "insert", "insertMany", "update", "remove"],
+  frames: ["list", "search", "searchWithPhotos", "details", "listWithPhotos", "create", "edit", "delete", "usage", "get", "insert", "insertMany", "update", "remove"],
+  accessories: ["list", "search", "details", "listWithPhotos", "create", "edit", "delete", "usage", "get", "insert", "insertMany", "update", "remove"],
   customers: ["list", "get", "search", "insert", "insertMany", "update", "delete"],
   /** A customer's history: listForCustomer(customerId) newest first; create(form) / edit(id, form) validate first (a prescription an order uses cannot be edited or deleted). */
   prescriptions: ["list", "get", "listForCustomer", "latestForCustomer", "create", "edit", "delete"],

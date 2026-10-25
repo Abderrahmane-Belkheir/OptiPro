@@ -49,3 +49,7 @@
 .od-edit__line { display: flex; flex-wrap: wrap; align-items: flex-end; gap: var(--space-3); padding-bottom: var(--space-3); border-bottom: 1px solid var(--color-border); }
 .od-edit__name { display: flex; flex-direction: column; flex: 1 1 14rem; min-width: 0; font-weight: 600; overflow-wrap: anywhere; }
 .od-edit__fixed { align-self: center; font-variant-numeric: tabular-nums; opacity: 0.75; }
+
+/* The order page: the question before a payment is taken */
+.od-pay--confirm { display: flex; flex-direction: column; gap: var(--space-2); padding: var(--space-4); border: 1px solid var(--color-border-strong); border-radius: var(--radius-lg); background: var(--color-surface); }
+.od-pay__sentence { margin: 0; font-size: var(--text-lg); font-weight: var(--weight-semibold); overflow-wrap: anywhere; }

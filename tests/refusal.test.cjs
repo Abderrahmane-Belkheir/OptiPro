@@ -30,7 +30,7 @@ const out = runScript(
     fs.writeFileSync(process.env.OPTIPRO_CONFIG_FILE, 'server.url=http://127.0.0.1:' + server.address().port + '\\ntenant.key=t1\\n');
     guard.resetRefusalReport();
     closed = 0;
-    if (how === 'table') await localCustomerService.insert({ name: 'C' + (++n) }).catch(() => {});
+    if (how === 'table') await localCustomerService.insert({ yearOfBirth: 1990, name: 'C' + (++n) }).catch(() => {});
     else await localImageService.upload('frame', 'abc', PNG).catch(() => {});
     results[name] = { settingsKept: fs.existsSync(process.env.OPTIPRO_CONFIG_FILE), closed };
     server.close();
@@ -48,13 +48,13 @@ const out = runScript(
   const again = http.createServer((req, res) => { res.writeHead(401, { 'content-type': 'application/json' }); res.end(JSON.stringify({ error: 'x', code: 'UNAUTHORIZED' })); });
   await new Promise((r) => again.listen(0, '127.0.0.1', r));
   fs.writeFileSync(process.env.OPTIPRO_CONFIG_FILE, 'server.url=http://127.0.0.1:' + again.address().port + '\\ntenant.key=t1\\n');
-  await localCustomerService.insert({ name: 'Twice 1' }).catch(() => {});
-  await localCustomerService.insert({ name: 'Twice 2' }).catch(() => {});
+  await localCustomerService.insert({ yearOfBirth: 1990, name: 'Twice 1' }).catch(() => {});
+  await localCustomerService.insert({ yearOfBirth: 1990, name: 'Twice 2' }).catch(() => {});
   results.twice = { closed };
   // unreachable server (last: the sync stops trying for a while after it)
   guard.resetRefusalReport(); closed = 0;
   fs.writeFileSync(process.env.OPTIPRO_CONFIG_FILE, 'server.url=http://127.0.0.1:9\\ntenant.key=t1\\n');
-  await localCustomerService.insert({ name: 'Offline' }).catch(() => {});
+  await localCustomerService.insert({ yearOfBirth: 1990, name: 'Offline' }).catch(() => {});
   results.unreachable = { settingsKept: fs.existsSync(process.env.OPTIPRO_CONFIG_FILE), closed };
   process.stdout.write('RESULT ' + JSON.stringify(results) + '\\n', () => process.exit(0));
 `,
@@ -108,7 +108,7 @@ async function exited(port, ms = 12000) {
     const server = await fake([200, { expiry: "2031-05-06" }], REFUSE);
     const b = sandbox("op-refused-sync-");
     b.writeConfig([`server.url=http://127.0.0.1:${server.address().port}`, "tenant.key=t1"]);
-    runScript(b, "await p.tenant.create({ data: { key: 't1', host: 'h1', name: 'T1' } }); await p.customer.create({ data: { id: 'c1', name: 'Waiting to sync', tenantKey: 't1', synced: false } });");
+    runScript(b, "await p.tenant.create({ data: { key: 't1', host: 'h1', name: 'T1' } }); await p.customer.create({ data: { yearOfBirth: 1990, id: 'c1', name: 'Waiting to sync', tenantKey: 't1', synced: false } });");
     // (the refusal comes within a moment of starting, and the app's own page is destroyed with it: the test attaches to the page that stays, the expired one)
     const A = await launchApp(b, {}, EXPIRED);
     try {

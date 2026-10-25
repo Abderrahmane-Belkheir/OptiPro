@@ -3,7 +3,7 @@
 // which validates, saves (locally, then on the server) and answers; a mistake is shown next to its field.
 // ACCESSORY: still only the picture ("Create accessory" does nothing yet).
 // Cancel, the close button and Escape close it. Used by the Frames and Accessories pages:
-//   window.openCreationCard({ kind: "frame", category: "Kids", brand: "Gucci", categoryId: 3, brandId: 12, onCreated: (result) => {} })
+//   window.openCreationCard({ kind: "frame", category: "Kids", brand: "Gucci", categoryId: 3, brandId: 12, gender: "female" /* optional: preselected */, onCreated: (result) => {} })
 //   window.openCreationCard({ kind: "accessory" })
 // The EDIT card of an existing frame or accessory (opened by the Edit button on its card): the same fields filled in, the
 // photos it has now (each can be marked for removal), a picker for new photos, "Save changes" and "Delete".
@@ -11,6 +11,7 @@
 (() => {
   "use strict";
 
+  const GENDERS = ["Female", "Male", "Unisex"]; // the values sent are lower case: female, male, unisex
   const SHAPES = ["Aviator", "Wayfarer", "Round", "Square", "Rectangular", "Oval", "Cat-eye", "Browline", "Geometric", "Pilot", "Other"];
   const CURRENCIES = ["DZD", "EUR", "USD"];
 
@@ -154,6 +155,7 @@
       field("Name", text("e.g. Aviator Classic"), { name: "name", required: true, wide: true }),
       field("Reference", text("Manufacturer model code"), { name: "reference" }),
       field("Shape", select(SHAPES, "Choose a shape"), { name: "shape" }),
+      field("Sex", select(GENDERS, "Not specified"), { name: "gender" }),
       field("Colors", text("Gold, Black, Silver"), { name: "colors", hint: "Separate the colors with commas.", wide: true }),
       h(
         "fieldset",
@@ -185,7 +187,7 @@
 
   const errorText = (error) => String(error?.message ?? error).replace(/^\[[\w-]+\]\s*/, "");
 
-  function open({ kind, category, brand, categoryId, brandId, onCreated } = {}) {
+  function open({ kind, category, brand, categoryId, brandId, gender, onCreated } = {}) {
     const isFrame = kind === "frame";
     const noun = isFrame ? "frame" : "accessory";
     const titleId = `cc-title-${++uid}`;
@@ -221,6 +223,7 @@
     );
     const dialog = h("dialog", { class: "dialog dialog--wide", "aria-labelledby": titleId, "data-creation": noun }, form);
     document.body.append(dialog);
+    if (isFrame && gender) setValue(dialog, "gender", gender); // the sex chosen on the page is the sex of the new frame (the person can change it)
 
     let busy = false;
     const dismiss = () => {
@@ -359,7 +362,13 @@
     const close = h("button", { class: "icon-button", type: "button", "aria-label": "Close" }, icon("x"));
     const cancel = h("button", { class: "btn btn--secondary", type: "button" }, "Cancel");
     const save = h("button", { class: "btn btn--primary", type: "submit", "data-action": "save" }, "Save changes");
-    const del = h("button", { class: "btn btn--secondary btn--danger-text", type: "button", "data-action": "delete" }, icon("trash"), `Delete ${noun}`);
+    // Delete is offered only for a product that was never used (not on an order, not on a supplier order): until that is known the button is not there
+    const del = h("button", { class: "btn btn--secondary btn--danger-text", type: "button", "data-action": "delete", hidden: true }, icon("trash"), `Delete ${noun}`);
+    const kept = h("p", { class: "creation__kept", "data-kept": "", hidden: true }, isFrame ? "This frame is on orders, so it cannot be deleted." : "This accessory is on orders, so it cannot be deleted.");
+    (isFrame ? window.electronAPI.frames : window.electronAPI.accessories).usage(item.id).then(
+      (count) => { if (count > 0) kept.hidden = false; else del.hidden = false; },
+      () => { del.hidden = false; }, // (not known: the button is there, and the deletion itself refuses a used one)
+    );
     const banner = h("div", { class: "alert", role: "alert", hidden: true }, icon("alert"), h("span"));
     const choose = (list, name, label) => field(label, (id) => h("select", { class: "input", id }, list.map((o) => h("option", { value: String(o.id) }, o.name))), { name, required: true });
 
@@ -371,13 +380,13 @@
       { class: "dialog__form", novalidate: true },
       h("div", { class: "dialog__header" }, h("div", null, h("h2", { class: "dialog__title", id: titleId }, `Edit ${noun}`), h("p", { class: "dialog__subtitle" }, item.name)), close),
       h("div", { class: "dialog__body creation" }, banner, h("div", { class: "creation__layout" }, photosBox, h("div", { class: "form-grid" }, fields))),
-      h("div", { class: "dialog__footer dialog__footer--split" }, del, h("div", { class: "dialog__footer-main" }, summary, cancel, save)),
+      h("div", { class: "dialog__footer dialog__footer--split" }, h("div", { class: "creation__delete" }, del, kept), h("div", { class: "dialog__footer-main" }, summary, cancel, save)),
     );
     const dialog = h("dialog", { class: "dialog dialog--wide", "aria-labelledby": titleId, "data-edit": noun, "data-id": item.id }, form);
     document.body.append(dialog);
 
     // ---- fill the fields with what the product has now
-    for (const name of ["name", "reference", "shape", "price", "currency", "costPrice", "stock", "eyeSize", "bridge", "templeLength", "description", "categoryId", "brandId"]) setValue(dialog, name, item[name]);
+    for (const name of ["name", "reference", "shape", "price", "currency", "costPrice", "stock", "eyeSize", "bridge", "templeLength", "description", "categoryId", "brandId", "gender"]) setValue(dialog, name, item[name]);
     if (isFrame) setValue(dialog, "colors", (item.colors ?? []).join(", "));
     if (!item.currency) setValue(dialog, "currency", "DZD");
 

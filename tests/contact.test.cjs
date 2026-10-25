@@ -11,7 +11,7 @@ const out = runScript(
   `
   await p.tenant.create({ data: { key: 't1', host: 'h1', name: 'T1' } });
   const S = { tenantKey: 't1', synced: true };
-  await p.customer.create({ data: { id: 'c1', name: 'Amina', ...S } });
+  await p.customer.create({ data: { yearOfBirth: 1990, id: 'c1', name: 'Amina', ...S } });
   const order = async (id, number) => {
     await p.order.create({ data: { id, number, status: 'confirmed', customerId: 'c1', orderedAt: new Date(), totalCents: 100000, ...S } });
     await p.orderItem.create({ data: { orderId: id, kind: 'lens', description: 'Essilor Progressive 1.6', quantity: 1, unitPriceCents: 100000, totalCents: 100000, ...S } });

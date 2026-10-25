@@ -259,6 +259,12 @@ export interface DeleteOutcome {
  *   3. the server's table API is asked right away. The server removes its database row, its photo rows and the files of its photos;
  *      if it cannot be reached, the outbox entry is sent by the sync until it has been.
  */
+/** How many order lines and supplier-order lines a frame or an accessory is on (0 = it was never used: it can be deleted). */
+export async function productUsage(type: ProductType, id: string): Promise<number> {
+  const where = type === "frame" ? { frameId: id } : { accessoryId: id };
+  return (await sqlitePrisma.orderItem.count({ where })) + (await sqlitePrisma.supplierOrderItem.count({ where }));
+}
+
 export async function applyDelete(c: {
   type: ProductType;
   id: string;
@@ -267,6 +273,11 @@ export async function applyDelete(c: {
   step: StepLog;
 }): Promise<DeleteOutcome> {
   const { type, id, step } = c;
+  // A product that an order or a supplier order was made with is kept: the local database would let it go (the lines would just lose their link), but the server never does
+  // (its lines point at it), so the deletion would stay in the outbox for ever, refused every time, and the product would stay on the server and on the website.
+  if ((await productUsage(type, id)) > 0) {
+    throw new LocalDbError(`This ${type} is used in orders or invoices, so it cannot be deleted.`, "invalid-reference");
+  }
   try {
     await sqlitePrisma.$transaction(async (tx) => {
       await c.deleteRow(tx);

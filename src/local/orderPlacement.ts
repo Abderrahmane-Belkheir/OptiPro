@@ -5,7 +5,6 @@ import { currentTenantKey } from "./context";
 import type { FieldErrors } from "./frameValidation";
 import { validateOrderDraft, type OrderDraft } from "./orderDraft";
 import { pushRow } from "./syncPush";
-import { newTrackingCode } from "./trackingCode";
 import { localNumberService, localOrderService } from "./shopServices";
 
 /**
@@ -103,9 +102,6 @@ export const localOrderPlacementService = {
     // Nothing to make (no lens, from the list or described): the customer leaves with it, so the order is delivered at once. With a lens it waits for the lab.
     const status = d.lensId || d.lensDescription ? "confirmed" : "delivered";
     const number = await localNumberService.next("order");
-    // The 6-digit code the customer can follow the order with: random, and not used by another order of the shop. Only an order that has a prescription gets one (an order
-    // for lenses is followed while the lab makes them; a frame or an accessory sold over the counter has nothing to follow); the others have none (null).
-    const trackingCode = d.prescriptionId === null ? null : await newTrackingCode(async (code) => (await sqlitePrisma.order.count({ where: { tenantKey, trackingCode: code } })) > 0);
     const id = randomUUID();
     const now = new Date();
     const paymentId = d.depositCents > 0 ? randomUUID() : null;
@@ -114,7 +110,7 @@ export const localOrderPlacementService = {
     await sqlitePrisma.$transaction(async (tx) => {
       await tx.order.create({
         data: {
-          id, number, trackingCode, tenantKey, customerId: d.customerId, prescriptionId: d.prescriptionId, status, orderedAt: now, deliveredAt: status === "delivered" ? now : null,
+          id, number, tenantKey, customerId: d.customerId, prescriptionId: d.prescriptionId, status, orderedAt: now, deliveredAt: status === "delivered" ? now : null,
           promisedAt: d.promisedAt ? new Date(`${d.promisedAt}T00:00:00.000Z`) : null,
           subtotalCents, discountCents: subtotalCents - totalCents, totalCents, notes: d.notes,
           pdRight: d.pdRight, pdLeft: d.pdLeft, fittingHeightRight: d.fittingHeightRight, fittingHeightLeft: d.fittingHeightLeft,

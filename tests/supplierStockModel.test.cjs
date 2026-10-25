@@ -19,7 +19,7 @@ const out = runScript(
   `
   await p.tenant.create({ data: { key: 't1', host: 'h1', name: 'T1' } });
   const S = { tenantKey: 't1', synced: true };
-  await p.customer.create({ data: { id: 'c1', name: 'Amina', ...S } });
+  await p.customer.create({ data: { yearOfBirth: 1990, id: 'c1', name: 'Amina', ...S } });
   await p.brand.create({ data: { id: 'b1', name: 'Ray-Ban', ...S } });
   await p.category.create({ data: { id: 1, name: 'Optical Frames', imageUrl: 'u' } }).catch(() => {});
   await p.supplier.create({ data: { id: 's1', name: 'Optic Import', kinds: 'frames', ...S } });

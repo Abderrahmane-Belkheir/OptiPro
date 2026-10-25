@@ -14,7 +14,7 @@ const out = runScript(
   const S = { tenantKey: 't1', synced: true };
   // the shop's details, as saved with the licence when the shop was activated
   await p.licenseExpiry.create({ data: { id: 1, shopName: 'Optique Soleil', phone: '0550 12 34 56', address: '12 Rue Didouche Mourad, Alger' } });
-  await p.customer.create({ data: { id: 'c1', name: 'Amina <b>Benali</b>', phone: '0661 00 00 00', address: 'Cité 5 Juillet', ...S } });
+  await p.customer.create({ data: { yearOfBirth: 1990, id: 'c1', name: 'Amina <b>Benali</b>', phone: '0661 00 00 00', address: 'Cité 5 Juillet', ...S } });
   await p.prescription.create({ data: { id: 'rx1', customerId: 'c1', prescribedAt: new Date('2026-01-10T00:00:00Z'), prescriberName: 'Dr Saidi', rightSphere: -2.25, rightCylinder: -0.5, rightAxis: 90, rightAdd: 1.5, leftSphere: 1, notes: 'Wears them all day', ...S } });
   await p.brand.create({ data: { id: 'b1', name: 'Ray-Ban', ...S } });
   await p.category.create({ data: { id: 1, name: 'Optical Frames', imageUrl: 'u' } }).catch(() => {});

@@ -19,6 +19,8 @@ export interface FrameForm {
   templeLength?: unknown;
   brandId?: unknown;
   categoryId?: unknown;
+  /** male | female | unisex, in any letter case; empty clears it; left out of the form, an edit leaves it as it is. */
+  gender?: unknown;
 }
 
 /** A photo as the window hands it over: its file name (only for messages) and its bytes. */
@@ -42,6 +44,8 @@ export interface CleanFrame {
   templeLength: number | null;
   brandId: string;
   categoryId: number;
+  /** Left out when the form does not mention it (an edit then keeps the one it has); null when the form emptied it. */
+  gender?: string | null;
 }
 
 /** A photo that passed: its bytes and what it really is. */
@@ -54,6 +58,8 @@ export interface CleanPhoto {
 /** Field name -> the message to show next to it. Empty when everything is fine. */
 export type FieldErrors = Record<string, string>;
 
+/** Who a frame is for. Stored exactly like this (lower case): the server's column only takes these. */
+export const GENDERS = ["male", "female", "unisex"] as const;
 export const CURRENCIES = ["DZD", "EUR", "USD"] as const;
 export const MAX_PHOTOS = 10;
 const LIMITS = {
@@ -160,6 +166,13 @@ export function validateFrameForm(form: FrameForm): { frame: CleanFrame; errors?
   const given = [form.eyeSize, form.bridge, form.templeLength].filter((v) => !blank(v)).length;
   if (given > 0 && given < 3 && !errors.eyeSize && !errors.bridge && !errors.templeLength) errors.size = "Give the eye size, the bridge and the temple length together, or none of them.";
 
+  let gender: string | null | undefined;
+  if (form.gender !== undefined) {
+    if (blank(form.gender)) gender = null;
+    else if (typeof form.gender === "string" && (GENDERS as readonly string[]).includes(form.gender.trim().toLowerCase())) gender = form.gender.trim().toLowerCase();
+    else errors.gender = `Choose ${GENDERS.slice(0, -1).join(", ")} or ${GENDERS[GENDERS.length - 1]}.`;
+  }
+
   const brandId = typeof form.brandId === "string" ? form.brandId.trim() : "";
   if (brandId === "" || brandId.length > 64) errors.brandId = "Choose a brand first.";
   const categoryId = parseNumber(form.categoryId);
@@ -181,6 +194,7 @@ export function validateFrameForm(form: FrameForm): { frame: CleanFrame; errors?
       templeLength,
       brandId,
       categoryId: categoryId!,
+      ...(gender !== undefined && { gender }),
     },
   };
 }

@@ -17,7 +17,7 @@ const out = runScript(
   await p.tenant.create({ data: { key: 't1', host: 'h1', name: 'T1' } });
   await p.tenant.create({ data: { key: 't2', host: 'h2', name: 'T2' } });
   const S = (key = 't1', synced = true) => ({ tenantKey: key, synced });
-  await p.customer.create({ data: { id: 'c1', name: 'Amina', ...S() } });
+  await p.customer.create({ data: { yearOfBirth: 1990, id: 'c1', name: 'Amina', ...S() } });
   await p.brand.create({ data: { id: 'b1', name: 'Ray-Ban', ...S() } });
   await p.brand.create({ data: { id: 'b2', name: 'Other', ...S('t2') } });
   await p.category.create({ data: { id: 1, name: 'Optical Frames', imageUrl: 'u' } }).catch(() => {});

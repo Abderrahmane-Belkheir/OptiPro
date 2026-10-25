@@ -11,7 +11,7 @@ import { randomUUID } from "node:crypto";
 import { newProductCode } from "./productCodes";
 import { searchAccessories } from "./productSearch";
 import { accessoryDetails } from "./accessoryDetails";
-import { applyCreate, applyDelete, applyEdit, checkPhotoChanges, type DeleteOutcome, type EditOutcome } from "./productEdit";
+import { applyCreate, applyDelete, applyEdit, checkPhotoChanges, productUsage, type DeleteOutcome, type EditOutcome } from "./productEdit";
 
 type AccessoryRow = NonNullable<Awaited<ReturnType<typeof sqlitePrisma.accessory.findFirst>>>;
 
@@ -69,6 +69,9 @@ export type CreateAccessoryResult =
 export type DeleteAccessoryResult = { status: "deleted"; id: string; name: string; steps: string[] } & DeleteOutcome;
 
 export const localAccessoryService = {
+  /** How many order lines and supplier-order lines the accessory is on: above 0, it cannot be deleted (the Edit card does not offer Delete). */
+  usage: (id: string) => productUsage("accessory", id),
+
   /** Accessories matching what was typed (name, code, description), for pickers. See productSearch.ts. */
   search: searchAccessories,
 

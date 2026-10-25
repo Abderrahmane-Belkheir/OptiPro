@@ -53,10 +53,10 @@ export const localPaymentsService = {
 
     const tenantKey = await currentTenantKey();
     const and: object[] = [];
+    // (the customers are matched in the query itself: a list of their ids passed along would break past about a thousand customers with the same word in their name)
     for (const word of words) {
-      const customers = await sqlitePrisma.customer.findMany({ where: { tenantKey, name: { contains: word } }, select: { id: true } });
-      const orders = await sqlitePrisma.order.findMany({ where: { tenantKey, OR: [{ number: { contains: word } }, { customerId: { in: customers.map((c) => c.id) } }] }, select: { id: true } });
-      and.push({ OR: [{ customerId: { in: customers.map((c) => c.id) } }, { orderId: { in: orders.map((o) => o.id) } }] });
+      const named = { customer: { is: { tenantKey, name: { contains: word } } } };
+      and.push({ OR: [named, { order: { is: { tenantKey, OR: [{ number: { contains: word } }, named] } } }] });
     }
     const payments = await sqlitePrisma.payment.findMany({
       where: { tenantKey, OR: [{ chequeDueDate: null }, { chequeDueDate: { lt: startOfTomorrow() } }], ...(period ? { paidAt: period } : {}), ...(and.length ? { AND: and } : {}) },

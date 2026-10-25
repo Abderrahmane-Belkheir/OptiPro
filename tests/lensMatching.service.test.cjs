@@ -13,8 +13,8 @@ const out = runScript(
   await p.tenant.create({ data: { key: 't1', host: 'h1', name: 'T1' } });
   await p.tenant.create({ data: { key: 't2', host: 'h2', name: 'T2' } });
   const S = (key) => ({ tenantKey: key, synced: true });
-  await p.customer.create({ data: { id: 'c1', name: 'Amina', ...S('t1') } });
-  await p.customer.create({ data: { id: 'c2', name: 'Other shop customer', ...S('t2') } });
+  await p.customer.create({ data: { yearOfBirth: 1990, id: 'c1', name: 'Amina', ...S('t1') } });
+  await p.customer.create({ data: { yearOfBirth: 1990, id: 'c2', name: 'Other shop customer', ...S('t2') } });
   const rx = (id, customerId, key, over) => p.prescription.create({ data: { id, customerId, prescribedAt: new Date('2026-01-10T00:00:00Z'), ...over, ...S(key) } });
   await rx('rx1', 'c1', 't1', { rightSphere: -2, rightCylinder: -0.5, rightAxis: 90, leftSphere: 1, leftAdd: 2, rightAdd: 2, fittingHeightRight: 20, fittingHeightLeft: 20 });
   await rx('rx2', 'c2', 't2', { rightSphere: -1 });

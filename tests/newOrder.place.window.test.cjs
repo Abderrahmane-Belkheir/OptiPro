@@ -14,7 +14,7 @@ runScript(
   `
   await p.tenant.create({ data: { key: 't1', host: 'h1', name: 'T1' } });
   const S = { tenantKey: 't1', synced: true };
-  await p.customer.create({ data: { id: 'c1', name: 'Amina Benali', ...S } });
+  await p.customer.create({ data: { yearOfBirth: 1990, id: 'c1', name: 'Amina Benali', ...S } });
   await p.prescription.create({ data: { id: 'rx1', customerId: 'c1', prescribedAt: new Date('2026-01-10T00:00:00Z'), rightSphere: -2, leftSphere: -1.5, pdRight: 31, pdLeft: 30.5, fittingHeightRight: 22, fittingHeightLeft: 21.5, ...S } });
   await p.brand.create({ data: { id: 'b1', name: 'Ray-Ban', ...S } });
   await p.category.create({ data: { id: 1, name: 'Optical Frames', imageUrl: 'u' } }).catch(() => {});
@@ -78,9 +78,7 @@ const digits = (s) => String(s ?? "").replace(/[^\d.,-]/g, "");
     R.section("the papers");
     await A.until("!!document.querySelector('[data-order-placed]')");
     R.ck(/^CMD-\d{4}-0001$/.test(await text("[data-placed-number]")), "the 'Order placed' box opens with the order's number", await text("[data-placed-number]"));
-    const shownCode = await A.val("(() => { const row = [...document.querySelectorAll('[data-order-placed] .order-summary__row')].find((r) => r.querySelector('dt').textContent === 'Tracking code'); return row ? row.querySelector('dd').textContent : null; })()");
-    R.ck(/^\d{6}$/.test(shownCode ?? ""), "the box shows the order's tracking code, 6 digits", String(shownCode));
-    R.ck(String(await A.val(`window.electronAPI.orders.get(document.querySelector('[data-order-placed]').dataset.orderPlaced).then((o) => o.trackingCode)`)) === String(shownCode), "and it is the code stored with the order", String(shownCode));
+    R.ck(await A.val("![...document.querySelectorAll('[data-order-placed] .order-summary__row dt')].some((d) => /tracking/i.test(d.textContent))"), "the box shows no tracking code");
     R.ck(await A.val("[...document.querySelectorAll('[data-order-placed] [data-print]')].map((b) => b.dataset.print).join() === 'invoice'"), "the box has a button for the customer's invoice, and none for the lab sheet");
     R.ck(await A.val("!document.querySelector('[data-order-placed] [data-print-supplier]')"), "(nor one for the lenses supplier: that one is on the order's page)");
     await click("[data-order-placed] [data-print=invoice]");

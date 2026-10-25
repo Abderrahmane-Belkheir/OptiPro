@@ -450,3 +450,9 @@
   align-self: flex-start;
   margin-top: var(--space-1);
 }
+
+/* The sex filter, above the category and brand choosers */
+.picker--sex { margin-bottom: var(--space-3); }
+/* the sex of a frame on its card: a little stronger than the other specs; muted when it was not given */
+.spec--sex { font-weight: var(--weight-semibold); }
+.spec--unset { color: var(--color-text-muted); font-weight: var(--weight-regular); font-style: italic; }

@@ -13,14 +13,14 @@ const out = runScript(
   const http = require('node:http');
   const fs = require('node:fs');
   await p.tenant.create({ data: { key: 't1', host: 'h1', name: 'T1' } });
-  await p.customer.create({ data: { id: 'c1', name: 'Existing', tenantKey: 't1', synced: true } });
+  await p.customer.create({ data: { yearOfBirth: 1990, id: 'c1', name: 'Existing', tenantKey: 't1', synced: true } });
   const L = require(ROOT + '/dist/local/index.js');
   const guard = require(ROOT + '/dist/local/licenseGuard.js');
   let closed = 0;
   guard.setUnauthorizedHandler(() => { closed += 1; });
   const PNG = Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a, 0, 0, 0, 0]);
   const paths = {
-    'insert a row': () => L.localCustomerService.insert({ name: 'New ' + Math.random() }),
+    'insert a row': () => L.localCustomerService.insert({ yearOfBirth: 1990, name: 'New ' + Math.random() }),
     'update a row': () => L.localCustomerService.update('c1', { name: 'Renamed ' + Math.random() }),
     'delete a row right away': async () => { const id = 'now-' + Math.random(); await L.queueDeletion('frame', id); return L.attemptDeletion('frame', id); }, // (the app queues a deletion first, then tries it at once)
     'the queue of waiting deletions': async () => { await L.queueDeletion('frame', 'queued-' + Math.random()); return L.pushPendingDeletions(); },

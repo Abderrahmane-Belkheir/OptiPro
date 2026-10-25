@@ -113,7 +113,7 @@ export const localDashboardService = {
       select: { id: true, number: true, customerId: true, promisedAt: true, totalCents: true },
       orderBy: [{ promisedAt: "asc" }, { orderedAt: "asc" }],
     });
-    const paidRows = orders.length ? await sqlitePrisma.payment.groupBy({ by: ["orderId"], where: { tenantKey, orderId: { in: orders.map((o) => o.id) } }, _sum: { amountCents: true } }) : [];
+    const paidRows = orders.length ? await sqlitePrisma.payment.groupBy({ by: ["orderId"], where: { tenantKey, order: { is: { tenantKey, status: "ready" } } }, _sum: { amountCents: true } }) : [];
     const paid = new Map(paidRows.map((p) => [p.orderId as string, p._sum.amountCents ?? 0]));
     const left = (o: { id: string; totalCents: number }) => Math.max(0, o.totalCents - (paid.get(o.id) ?? 0));
     const shown = orders.slice(0, LIST_LIMIT);

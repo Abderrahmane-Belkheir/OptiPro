@@ -20,7 +20,6 @@ export { checkExpiryWithServer, checkKeyWithServer, type ExpiryCheck } from "./l
 export { localPaymentsService, type PaymentRow, type PaymentsList } from "./paymentsService";
 export { localOrderDetailsService, type OrderDetails, type OrderLine, type OrderPayment } from "./orderDetails";
 export { localOrderPlacementService, type PlaceOrderResult } from "./orderPlacement";
-export { newTrackingCode, TRACKING_CODE_MAX, TRACKING_CODE_MIN } from "./trackingCode";
 export { localSupplierOrderPlacementService, type PlaceSupplierOrderResult, type SupplierOrderDraft } from "./supplierOrderPlacement";
 export { localSupplierOrdersService, type SupplierOrderDetails, type SupplierOrderLine, type SupplierOrderRow, type SupplierOrdersList } from "./supplierOrderService";
 export { localSupplierService, type SaveSupplierResult } from "./supplierService";

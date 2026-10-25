@@ -1,4 +1,4 @@
-// The order page (#orders/<id>): the tracking code is shown, and the prices and costs can be corrected: the price and the cost of the lens, the cost of the other lines, the
+// The order page (#orders/<id>): the prices and costs can be corrected: the price and the cost of the lens, the cost of the other lines, the
 // final price of the order. The items' total is worked out again; without a typed final price the discount stays; the final price cannot be more than the items add
 // up to nor less than what was paid; the invoice already issued follows; the changes are marked to be sent to the server.
 const { sandbox, runScript, launchApp, recorder, sleep } = require("./helpers/app.cjs");
@@ -12,14 +12,14 @@ runScript(
   `
   await p.tenant.create({ data: { key: 't1', host: 'h1', name: 'T1' } });
   const S = { tenantKey: 't1', synced: true };
-  await p.customer.create({ data: { id: 'c1', name: 'Amina', ...S } });
+  await p.customer.create({ data: { yearOfBirth: 1990, id: 'c1', name: 'Amina', ...S } });
   await p.prescription.create({ data: { id: 'rx1', customerId: 'c1', prescribedAt: new Date('2026-01-10T00:00:00Z'), rightSphere: -2, ...S } });
   await p.brand.create({ data: { id: 'b1', name: 'Ray-Ban', ...S } });
   await p.category.create({ data: { id: 1, name: 'Optical Frames', imageUrl: 'u' } }).catch(() => {});
   await p.frame.create({ data: { id: 'f1', name: 'Aviator', brandId: 'b1', categoryId: 1, price: 18500, costPrice: 12000, currency: 'DZD', stock: 3, ...S } });
   await p.lens.create({ data: { id: 'l1', name: 'Stock 1.5', priceCents: 500000, costCents: 0, ...S } });
-  // o1: a frame (cost 12 000) and a lens (cost not known), discounted from 23 500 to 20 000; has a prescription and so a tracking code; 3 000 paid
-  await p.order.create({ data: { id: 'o1', number: 'CMD-1', customerId: 'c1', prescriptionId: 'rx1', trackingCode: 123456, status: 'confirmed', subtotalCents: 2350000, discountCents: 350000, totalCents: 2000000, ...S } });
+  // o1: a frame (cost 12 000) and a lens (cost not known), discounted from 23 500 to 20 000; 3 000 paid
+  await p.order.create({ data: { id: 'o1', number: 'CMD-1', customerId: 'c1', prescriptionId: 'rx1', status: 'confirmed', subtotalCents: 2350000, discountCents: 350000, totalCents: 2000000, ...S } });
   await p.orderItem.create({ data: { id: 'i1', orderId: 'o1', kind: 'frame', frameId: 'f1', description: 'Ray-Ban Aviator', quantity: 1, unitPriceCents: 1850000, totalCents: 1850000, unitCostCents: 1200000, ...S } });
   await p.orderItem.create({ data: { id: 'i2', orderId: 'o1', kind: 'lens', lensId: 'l1', description: 'Stock 1.5', eye: 'both', quantity: 1, unitPriceCents: 500000, totalCents: 500000, unitCostCents: null, ...S } });
   await p.payment.create({ data: { id: 'p1', orderId: 'o1', customerId: 'c1', amountCents: 300000, ...S } });
@@ -53,16 +53,13 @@ const tile = (key) => A.val(`document.querySelector('[data-tile=${key}] .summary
 
     R.section("what the page tells");
     const d0 = await svc("window.electronAPI.orderDetails.get('o1')");
-    R.ck(d0.trackingCode === 123456, "the order's details carry its tracking code");
     R.ck(d0.costCents === null && d0.profitCents === null, "the cost and the profit are unknown while a line has no known cost");
     R.ck(d0.items.find((i) => i.id === "i1").unitCostCents === 1200000 && d0.items.find((i) => i.id === "i2").unitCostCents === null, "each line carries its cost");
-    R.ck((await svc("window.electronAPI.orderDetails.get('o2')")).trackingCode === null, "an order with no prescription has no code");
 
     await go("orders/o1");
-    R.ck((await tile("tracking")) === "123456" && (await text("[data-tile=tracking]")).includes("follows the order"), "the tracking code is shown on the order page");
+    R.ck(!(await A.val("!!document.querySelector('[data-tile=tracking]')")), "the order page shows no tracking code");
     R.ck((await tile("cost")) === "—" && (await tile("profit")) === "—", "cost and profit show a dash while a cost is unknown");
     await go("orders/o2");
-    R.ck(!(await A.val("!!document.querySelector('[data-tile=tracking]')")), "no tracking tile when the order has no code");
     R.ck((await tile("cost")) === (await money(1200000)) && (await tile("profit")) === (await money(650000)), "cost and profit when every cost is known");
 
     R.section("the service");

@@ -12,9 +12,9 @@ const out = runScript(
   `
   await p.tenant.create({ data: { key: 't1', host: 'h1', name: 'T1' } });
   const S = { tenantKey: 't1', synced: true };
-  await p.customer.create({ data: { id: 'c1', name: 'Amina', ...S } });
-  await p.customer.create({ data: { id: 'c2', name: 'Karim', ...S } });
-  await p.customer.create({ data: { id: 'c3', name: 'Zed Solo', ...S } });
+  await p.customer.create({ data: { yearOfBirth: 1990, id: 'c1', name: 'Amina', ...S } });
+  await p.customer.create({ data: { yearOfBirth: 1990, id: 'c2', name: 'Karim', ...S } });
+  await p.customer.create({ data: { yearOfBirth: 1990, id: 'c3', name: 'Zed Solo', ...S } });
   let n = 0;
   // an order with its lines: items = [[kind, unitPriceCents, unitCostCents | null, quantity]]
   const order = async (id, customerId, day, status, subtotal, total, items) => {

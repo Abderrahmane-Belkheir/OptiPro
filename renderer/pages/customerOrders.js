@@ -102,14 +102,6 @@
   };
   const KIND = { frame: "Frame", lens: "Lenses", accessory: "Accessory", service: "Service" };
 
-  function age(iso) {
-    const born = new Date(iso);
-    const now = new Date();
-    let years = now.getUTCFullYear() - born.getUTCFullYear();
-    if (now.getUTCMonth() < born.getUTCMonth() || (now.getUTCMonth() === born.getUTCMonth() && now.getUTCDate() < born.getUTCDate())) years--;
-    return years;
-  }
-
   /** "+2.00 / −1.25 × 90°" for one eye, as a short reminder on an order; the full card opens from the link. */
   function rxLine(entry) {
     const eye = (side) => {
@@ -138,7 +130,7 @@
           row("Phone", customer.phone),
           row("Email", customer.email),
           row("Address", customer.address),
-          row("Date of birth", customer.dateOfBirth ? `${formatDay(customer.dateOfBirth)} (${age(customer.dateOfBirth)} years)` : null),
+          row("Birth year", customer.yearOfBirth ? `${customer.yearOfBirth} (${new Date().getFullYear() - customer.yearOfBirth} years)` : null),
           row("Customer since", customer.createdAt ? formatDay(customer.createdAt) : null),
         ),
         customer.notes ? h("p", { class: "info__notes" }, h("span", { class: "info__key" }, "Notes"), customer.notes) : null,

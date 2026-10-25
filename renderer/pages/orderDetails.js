@@ -43,9 +43,10 @@
   const formatDay = (iso) => dayFormat.format(new Date(iso));
   const moneyFormat = new Intl.NumberFormat(undefined, { style: "currency", currency: CURRENCY, maximumFractionDigits: 2, minimumFractionDigits: 0 });
   const money = (cents) => moneyFormat.format(cents / 100);
+  const PAY_CONFIRM_DELAY_MS = 500;
   const EYE = { right: "Right eye", left: "Left eye", both: "Both eyes" };
 
-  const state = { id: null, load: "loading", order: null, error: "", busy: false, message: "", token: 0, pending: null, editing: false };
+  const state = { id: null, load: "loading", order: null, error: "", busy: false, message: "", token: 0, pending: null, editing: false, payDraft: null, confirmPay: null };
   let root = null;
 
   async function load() {
@@ -110,9 +111,36 @@
     );
   }
 
+  /** The question asked before a payment is taken: what is taken, from which order, what will be left. Nothing is taken until the person says yes. */
+  function payConfirm(order) {
+    const { cents, note } = state.confirmPay;
+    const left = Math.max(0, order.remainingCents - cents);
+    // A double click on "Take payment" must not answer the question by itself: the answer is accepted a moment after the question appears.
+    const yes = h("button", { class: "btn btn--primary", type: "button", disabled: true, "data-pay-confirm-yes": "", onclick: () => {
+      state.confirmPay = null;
+      act(async () => {
+        const result = await api.pay(order.id, { amountCents: cents, notes: note });
+        state.payDraft = null;
+        return result;
+      });
+    } }, "Yes, take the payment");
+    setTimeout(() => { yes.disabled = state.busy; yes.focus(); }, PAY_CONFIRM_DELAY_MS);
+    const back = h("button", { class: "btn btn--secondary", type: "button", "data-pay-confirm-back": "", onclick: () => { state.confirmPay = null; render(); } }, "Back");
+    return h(
+      "div",
+      { class: "od-pay od-pay--confirm", role: "group", "aria-label": "Confirm the payment", "data-pay-confirm": "" },
+      h("h3", { class: "od-section__title" }, "Confirm the payment"),
+      h("p", { class: "od-pay__sentence", "data-pay-sentence": "" }, `Take ${money(cents)} for order ${order.number}?`),
+      note.trim() ? h("p", { class: "od-hint" }, `Note: ${note.trim()}`) : null,
+      h("p", { class: "od-hint", "data-pay-after": "" }, left === 0 ? "The order will be paid in full." : `${money(left)} will be left to pay.`),
+      h("div", { class: "od-status__confirm" }, yes, back),
+    );
+  }
+
   function payForm(order) {
-    const amount = h("input", { class: "od-input", type: "number", min: "0", step: "any", inputmode: "decimal", "aria-label": `Amount in ${CURRENCY}`, value: String(order.remainingCents / 100), "data-pay-amount": "" });
-    const note = h("input", { class: "od-input od-input--wide", type: "text", maxlength: "500", placeholder: "Note (optional)", "aria-label": "Note", "data-pay-note": "" });
+    if (state.confirmPay) return payConfirm(order);
+    const amount = h("input", { class: "od-input", type: "number", min: "0", step: "any", inputmode: "decimal", "aria-label": `Amount in ${CURRENCY}`, value: state.payDraft?.amount ?? String(order.remainingCents / 100), "data-pay-amount": "" });
+    const note = h("input", { class: "od-input od-input--wide", type: "text", maxlength: "500", placeholder: "Note (optional)", "aria-label": "Note", value: state.payDraft?.note ?? "", "data-pay-note": "" });
     const submit = () => {
       const cents = Math.round(Number(amount.value) * 100);
       if (!Number.isFinite(cents) || cents <= 0) {
@@ -123,7 +151,10 @@
         state.message = `That is more than what is left to pay (${money(order.remainingCents)}).`;
         return render();
       }
-      act(() => api.pay(order.id, { amountCents: cents, notes: note.value }));
+      state.payDraft = { amount: amount.value, note: note.value }; // (kept if the person goes Back)
+      state.confirmPay = { cents, note: note.value };
+      state.message = "";
+      render();
     };
     return h(
       "form",
@@ -275,7 +306,7 @@
         ),
         h("span", { class: `status status--${o.status}`, "data-status": o.status }, LABEL[o.status] ?? o.status),
       ),
-      h("div", { class: "summary" }, tile("total", "Total", money(o.totalCents)), tile("paid", "Paid", money(o.paidCents)), tile("left", "Left to pay", o.status === "cancelled" ? "—" : money(o.remainingCents), o.remainingCents > 0 ? "due" : null), tile("cost", "Cost", o.costCents === null ? "—" : money(o.costCents)), tile("profit", "Net profit", o.profitCents === null ? "—" : money(o.profitCents), o.profitCents !== null && o.profitCents < 0 ? "due" : null), o.trackingCode ? tile("tracking", "Tracking code", String(o.trackingCode), null, "The customer follows the order with this code on the website.") : null),
+      h("div", { class: "summary" }, tile("total", "Total", money(o.totalCents)), tile("paid", "Paid", money(o.paidCents)), tile("left", "Left to pay", o.status === "cancelled" ? "—" : money(o.remainingCents), o.remainingCents > 0 ? "due" : null), tile("cost", "Cost", o.costCents === null ? "—" : money(o.costCents)), tile("profit", "Net profit", o.profitCents === null ? "—" : money(o.profitCents), o.profitCents !== null && o.profitCents < 0 ? "due" : null)),
       state.message ? h("p", { class: "od-error", role: "alert", "data-message": "" }, state.message) : null,
       h("section", { class: "od-section" }, h("h3", { class: "od-section__title" }, "Status"), statusSwitch(o)),
       o.canPay ? h("section", { class: "od-section" }, payForm(o)) : null,
@@ -303,6 +334,8 @@
         state.pending = null;
         state.message = "";
         state.editing = false;
+        state.payDraft = null;
+        state.confirmPay = null;
       }
       state.id = id;
       load();
@@ -315,6 +348,8 @@
       state.pending = null;
       state.message = "";
       state.editing = false;
+      state.payDraft = null;
+      state.confirmPay = null;
     }
   }
 

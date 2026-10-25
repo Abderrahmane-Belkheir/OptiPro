@@ -15,7 +15,7 @@ import path from "node:path";
 import { imagesDir } from "../lib/appData";
 import { localPhotoFiles, localPhotoService, photoAddress } from "./photoService";
 import { validateFrameForm, validatePhotos, type FieldErrors, type FrameForm, type PhotoInput } from "./frameValidation";
-import { applyCreate, applyDelete, applyEdit, checkPhotoChanges, type DeleteOutcome, type EditOutcome } from "./productEdit";
+import { applyCreate, applyDelete, applyEdit, checkPhotoChanges, productUsage, type DeleteOutcome, type EditOutcome } from "./productEdit";
 
 type FrameRow = NonNullable<Awaited<ReturnType<typeof sqlitePrisma.frame.findFirst>>>;
 
@@ -107,6 +107,9 @@ async function foldFrames(rows: JoinedFrameRow[]): Promise<FrameWithPhotos[]> {
 const FRAMES_SEARCH_PAGE = 60;
 
 export const localFrameService = {
+  /** How many order lines and supplier-order lines the frame is on: above 0, it cannot be deleted (the Edit card does not offer Delete). */
+  usage: (id: string) => productUsage("frame", id),
+
   /** Frames matching what was typed (name, code, reference, brand), as { id, code, name, brand, price, ... }: for pickers. See productSearch.ts. */
   search: searchFrames,
 
@@ -136,7 +139,7 @@ export const localFrameService = {
     const rows = await sqlitePrisma.$queryRaw<JoinedFrameRow[]>`
       SELECT f.id, f.name, f.price, f.currency, f.images, f.shape, f.colors, f.stock,
              f.brand_id AS brandId, f.category_id AS categoryId, f.eye_size AS eyeSize, f.bridge,
-             f.temple_length AS templeLength, f.reference, f.cost_price AS costPrice, f.code,
+             f.temple_length AS templeLength, f.reference, f.cost_price AS costPrice, f.code, f.gender,
              pi.id AS imageId, pi.synced AS imageSynced
         FROM frames f
         LEFT JOIN product_images pi ON pi.frame_id = f.id
@@ -160,7 +163,7 @@ export const localFrameService = {
     const rows = await sqlitePrisma.$queryRaw<JoinedFrameRow[]>(Prisma.sql`
       SELECT f.id, f.name, f.price, f.currency, f.images, f.shape, f.colors, f.stock,
              f.brand_id AS brandId, f.category_id AS categoryId, f.eye_size AS eyeSize, f.bridge,
-             f.temple_length AS templeLength, f.reference, f.cost_price AS costPrice, f.code,
+             f.temple_length AS templeLength, f.reference, f.cost_price AS costPrice, f.code, f.gender,
              pi.id AS imageId, pi.synced AS imageSynced
         FROM frames f
         LEFT JOIN product_images pi ON pi.frame_id = f.id

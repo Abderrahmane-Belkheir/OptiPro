@@ -8,6 +8,9 @@
 
   const api = window.electronAPI;
   const BRAND_SEARCH_FROM = 12; // above this many brands the chooser gets a search box
+  // Who a frame is for. The values are what is stored (lower case, like the server's column); the labels are what the person reads.
+  const GENDERS = [["female", "Female"], ["male", "Male"], ["unisex", "Unisex"]];
+  const GENDER_LABEL = Object.fromEntries(GENDERS);
 
   // ---- Small helpers -------------------------------------------------------------------------
 
@@ -55,6 +58,7 @@
     catalog: { status: "loading", categories: [], brands: [], error: "" },
     categoryId: null,
     brandId: null,
+    gender: "all", // the sex filter: all | female | male | unisex
     brandQuery: "",
     // The search box: what is typed, how (by "model" or by "code"), and the frames found. Found frames are narrowed by the chosen brand and category, if any.
     searchText: "",
@@ -172,6 +176,7 @@
       addBrand: h("button", { class: "btn btn--secondary btn--sm", type: "button", hidden: true, onclick: openAddBrand }, icon("plus"), "Add brand"),
       deleteBrand: h("button", { class: "btn btn--secondary btn--sm btn--danger-text", type: "button", id: "delete-brand", hidden: true, onclick: openDeleteBrand }, icon("trash"), "Delete brand"),
       addFrame: h("button", { class: "btn btn--primary", type: "button", id: "add-frame", hidden: true, onclick: openCreateFrame }, icon("plus"), "Add frame"),
+      genders: h("div", { class: "chips", role: "group", "aria-labelledby": "frames-gender-title", "data-gender-filter": "" }),
       results: h("div", { class: "results", "aria-live": "polite" }),
     };
     // the frames search: a box, and how to search (by model or by code)
@@ -181,6 +186,7 @@
       clearTimeout(state.searchTimer);
       state.searchTimer = setTimeout(runSearch, 150); // the list is made again as the person types, without a request at every key
     });
+    frameSearch.value = state.searchText; // a search made before the page was left is still in the box (and is made again when the page opens: see route)
     refs.frameSearch = frameSearch;
     refs.searchModes = h("div", { class: "chips pick-modes", role: "group", "aria-label": "Search by", "data-search-modes": "" }, [["model", "By model"], ["code", "By code"]].map(([mode, label]) =>
       h("button", { class: "chip", type: "button", "data-mode": mode, "aria-pressed": String(mode === state.by), onclick: () => {
@@ -206,6 +212,7 @@
       { class: "page", "aria-labelledby": "frames-title", "data-fetches": "0" },
       h("header", { class: "page__header" }, h("div", null, h("h2", { class: "page__title", id: "frames-title" }, "Frames"), h("p", { class: "page__description" }, "Choose a category and a brand to see its frames, or search by model or by code."))),
       h("div", { class: "frames-search" }, refs.searchModes, h("div", { class: "search pick-search__box" }, icon("search"), frameSearch), refs.searchHint),
+      h("div", { class: "picker picker--sex" }, h("div", { class: "picker__group" }, h("div", { class: "picker__label" }, h("span", { class: "picker__title", id: "frames-gender-title" }, "Sex")), refs.genders)),
       h(
         "div",
         { class: "picker" },
@@ -248,8 +255,16 @@
     refs.brands.append(...shown.map((b) => chip(b.name, b.id === state.brandId, () => choose("brand", b.id))));
   }
 
+  /** The sex filter: All, Female, Male, Unisex. It narrows the frames that are shown (the list of the chosen brand and category, or the ones found); a frame with no sex is only in All. */
+  function renderGenders() {
+    refs.genders.replaceChildren(...[["all", "All"], ...GENDERS].map(([value, label]) => h("button", { class: "chip", type: "button", "data-gender": value, "aria-pressed": String(state.gender === value), onclick: () => { state.gender = value; render(); } }, h("span", null, label))));
+  }
+
+  const visible = (frames) => (state.gender === "all" ? frames : frames.filter((f) => f.gender === state.gender));
+
   function render() {
     if (!root) return;
+    renderGenders();
     renderCategories();
     renderBrands();
     renderResults();
@@ -297,7 +312,7 @@
     const bar = h(
       "div",
       { class: "results__bar" },
-      h("div", { class: "results__summary" }, h("h3", { class: "results__title", title }, title), list.status === "ready" ? h("span", { class: "results__count" }, `${list.frames.length} ${list.frames.length === 1 ? "frame" : "frames"}`) : null, list.source === "cache" ? h("span", { class: "results__note", title: "Shown from the lists already loaded; Refresh reads the database again" }, "Already loaded") : null),
+      h("div", { class: "results__summary" }, h("h3", { class: "results__title", title }, title), list.status === "ready" ? h("span", { class: "results__count" }, `${visible(list.frames).length} ${visible(list.frames).length === 1 ? "frame" : "frames"}`) : null, list.source === "cache" ? h("span", { class: "results__note", title: "Shown from the lists already loaded; Refresh reads the database again" }, "Already loaded") : null),
       refresh,
     );
     box.dataset.status = list.status;
@@ -307,7 +322,8 @@
     if (list.status === "loading") return box.append(h("div", { class: "grid", "aria-busy": "true" }, Array.from({ length: 6 }, skeletonCard)));
     if (list.status === "error") return box.append(stateBox("alert", "The frames couldn't be loaded", list.error, h("button", { class: "btn btn--secondary", type: "button", onclick: () => ensureList(true) }, "Try again")));
     if (list.frames.length === 0) return box.append(stateBox("glasses", "No frames here yet", `There are no ${brandName()} frames in ${categoryName()}.`));
-    box.append(h("div", { class: "grid" }, list.frames.map(card)));
+    if (visible(list.frames).length === 0) return box.append(stateBox("glasses", "No frame for this sex", "Choose All to see every frame of this brand again."));
+    box.append(h("div", { class: "grid" }, visible(list.frames).map(card)));
   }
 
   /** The frames found by the search (all the frames, or only those of the chosen brand and category). */
@@ -318,11 +334,12 @@
     box.dataset.source = "search";
     if (found.status === "refused") return; // what is wrong is said under the search box
     const title = `Results for “${state.searchText.trim()}”`;
-    box.append(h("div", { class: "results__bar" }, h("div", { class: "results__summary" }, h("h3", { class: "results__title", title }, title), where ? h("span", { class: "results__count", "data-search-scope": "" }, where) : null, found.status === "ready" ? h("span", { class: "results__count", "data-search-count": "" }, `${found.frames.length} ${found.frames.length === 1 ? "frame" : "frames"}`) : null)));
+    box.append(h("div", { class: "results__bar" }, h("div", { class: "results__summary" }, h("h3", { class: "results__title", title }, title), where ? h("span", { class: "results__count", "data-search-scope": "" }, where) : null, found.status === "ready" ? h("span", { class: "results__count", "data-search-count": "" }, `${visible(found.frames).length} ${visible(found.frames).length === 1 ? "frame" : "frames"}`) : null)));
     if (found.status === "loading") return box.append(h("div", { class: "grid", "aria-busy": "true" }, Array.from({ length: 6 }, skeletonCard)));
     if (found.status === "error") return box.append(stateBox("alert", "The frames couldn't be searched", found.message, h("button", { class: "btn btn--secondary", type: "button", onclick: runSearch }, "Try again")));
     if (found.frames.length === 0) return box.append(stateBox("search", "No frame matches", where ? `Nothing found for “${state.searchText.trim()}” in ${where}.` : `Nothing found for “${state.searchText.trim()}”.`));
-    box.append(h("div", { class: "grid" }, found.frames.map(card)));
+    if (visible(found.frames).length === 0) return box.append(stateBox("search", "No frame for this sex", "Choose All to see every frame that matches."));
+    box.append(h("div", { class: "grid" }, visible(found.frames).map(card)));
     if (found.more) box.append(h("p", { class: "results__more", "data-more": "" }, "Showing the first 60. Keep typing to narrow it down."));
   }
 
@@ -356,6 +373,7 @@
     const size = [frame.eyeSize, frame.bridge, frame.templeLength].every((v) => v !== null && v !== undefined) ? `${frame.eyeSize}-${frame.bridge}-${frame.templeLength}` : null;
     const specs = [frame.shape, size ? `${size} mm` : null, frame.colors.length ? frame.colors.slice(0, 3).join(" / ") : null].filter(Boolean);
     const price = formatPrice(frame.price, frame.currency);
+    const sex = GENDER_LABEL[frame.gender] ?? null;
     return h(
       "article",
       { class: "frame-card", "data-id": frame.id },
@@ -365,7 +383,7 @@
         { class: "frame-card__body" },
         h("h4", { class: "frame-card__name", title: frame.name }, h("a", { href: `#inventory/frames/${encodeURIComponent(frame.id)}`, "data-action": "open-details" }, frame.name)),
         h("p", { class: "frame-card__sub", title: frame.reference ?? "" }, frame.reference ? `Ref. ${frame.reference}` : "No reference"),
-        h("div", { class: "frame-card__specs" }, specs.map((s) => h("span", { class: "spec", title: s }, s))),
+        h("div", { class: "frame-card__specs" }, h("span", { class: `spec spec--sex${sex ? "" : " spec--unset"}`, "data-sex": frame.gender ?? "" }, sex ?? "Sex not set"), specs.map((s) => h("span", { class: "spec", title: s }, s))),
         h("div", { class: "frame-card__footer" }, price ? h("span", { class: "frame-card__price" }, price) : h("span", { class: "frame-card__price frame-card__price--none" }, "No price"), h("span", { class: `stock${frame.stock > 0 ? "" : " stock--out"}` }, frame.stock > 0 ? `${frame.stock} in stock` : "Out of stock")),
         h(
           "div",
@@ -556,6 +574,7 @@
       brand: brandName(),
       categoryId: created.categoryId,
       brandId: created.brandId,
+      gender: state.gender === "all" ? "" : state.gender, // the sex chosen in the filter starts selected
       onCreated(result) {
         state.cache.delete(`${created.brandId}:${created.categoryId}`);
         if (root && state.categoryId === created.categoryId && state.brandId === created.brandId) ensureList(true);
@@ -603,9 +622,13 @@
     const content = document.getElementById("content");
     const here = location.hash.slice(1) === "inventory/frames";
     if (here && !root) {
+      // The lists kept from an earlier visit are dropped: the stock and the prices change elsewhere (a sale, a supplier order, an edit on another page), so every visit reads them
+      // again. Within a visit the lists already seen stay cached (choosing an earlier combination shows it at once).
+      state.cache.clear();
+      state.list = { status: "idle", frames: [], source: "", error: "" };
       root = build();
       content.replaceChildren(root);
-      loadCatalog(); // the choosers are read again each time the page is opened; lists already seen stay cached
+      loadCatalog(); // the choosers and the frames are read again each time the page is opened
     } else if (!here && root) {
       root.remove();
       root = null;

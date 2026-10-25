@@ -11,8 +11,8 @@ runScript(
   `
   await p.tenant.create({ data: { key: 't1', host: 'h1', name: 'T1' } });
   const S = { tenantKey: 't1', synced: true };
-  await p.customer.create({ data: { id: 'c1', name: 'Amina', createdAt: new Date('2025-02-01T10:00:00'), ...S } });
-  await p.customer.create({ data: { id: 'c2', name: 'Karim', createdAt: new Date('2025-03-15T10:00:00'), ...S } });
+  await p.customer.create({ data: { yearOfBirth: 1990, id: 'c1', name: 'Amina', createdAt: new Date('2025-02-01T10:00:00'), ...S } });
+  await p.customer.create({ data: { yearOfBirth: 1990, id: 'c2', name: 'Karim', createdAt: new Date('2025-03-15T10:00:00'), ...S } });
   await p.brand.create({ data: { id: 'b1', name: 'Ray-Ban', ...S } });
   await p.category.create({ data: { id: 1, name: 'Optical Frames', imageUrl: 'u' } }).catch(() => {});
   const frame = (id, name, stock, price, costPrice) => p.frame.create({ data: { id, name, brandId: 'b1', categoryId: 1, price, costPrice, currency: 'DZD', stock, ...S } });

@@ -10,17 +10,17 @@ import { attemptDeletion, queueDeletionIn } from "./pendingDeletions";
 type CustomerRow = NonNullable<Awaited<ReturnType<typeof sqlitePrisma.customer.findFirst>>>;
 
 function toCustomer(row: CustomerRow): Customer {
-  return { ...row, dateOfBirth: row.dateOfBirth?.toISOString() ?? null, createdAt: row.createdAt.toISOString() };
+  return { ...row, createdAt: row.createdAt.toISOString() };
 }
 
-/** The date of birth arrives as an ISO string; the database wants a Date. */
-function toDatabase<T extends { dateOfBirth?: string | null }>(customer: T): Omit<T, 'dateOfBirth'> & { dateOfBirth?: Date | null } {
-  const { dateOfBirth, ...rest } = customer;
-  if (dateOfBirth === undefined) return rest;
-  if (dateOfBirth === null) return { ...rest, dateOfBirth: null };
-  const date = new Date(dateOfBirth);
-  if (Number.isNaN(date.getTime())) throw new LocalDbError(`customer: dateOfBirth is not a valid date ("${dateOfBirth}").`, 'invalid-reference');
-  return { ...rest, dateOfBirth: date };
+/** A year of birth is a whole year after 1920 and before this year (the database holds the same rule). On a new customer it is needed; a change may leave it out but not empty it. */
+function checkYearOfBirth<T extends { yearOfBirth?: number | null }>(customer: T, required = false): T {
+  const { yearOfBirth } = customer;
+  if (yearOfBirth === undefined && !required) return customer;
+  if (typeof yearOfBirth !== "number" || !Number.isInteger(yearOfBirth) || yearOfBirth <= 1920 || yearOfBirth >= new Date().getFullYear()) {
+    throw new LocalDbError(`customer: yearOfBirth is needed: a whole year after 1920 and before ${new Date().getFullYear()} ("${yearOfBirth}").`, 'invalid-reference');
+  }
+  return customer;
 }
 
 /**
@@ -77,7 +77,7 @@ export const localCustomerService = {
     const tenantKey = await currentTenantKey();
     let created;
     try {
-      created = await sqlitePrisma.customer.create({ data: { ...toDatabase(customer), tenantKey } });
+      created = await sqlitePrisma.customer.create({ data: { ...checkYearOfBirth(customer, true), tenantKey } });
     } catch (err) {
       translateError(err, "Insert customer");
     }
@@ -90,7 +90,7 @@ export const localCustomerService = {
     const tenantKey = await currentTenantKey();
     let created;
     try {
-      created = await sqlitePrisma.$transaction(customers.map((c) => sqlitePrisma.customer.create({ data: { ...toDatabase(c), tenantKey } })));
+      created = await sqlitePrisma.$transaction(customers.map((c) => sqlitePrisma.customer.create({ data: { ...checkYearOfBirth(c, true), tenantKey } })));
     } catch (err) {
       translateError(err, "Insert customers");
     }
@@ -100,7 +100,7 @@ export const localCustomerService = {
   async update(id: string, changes: Partial<Omit<NewCustomer, "id">>): Promise<Customer> {
     const tenantKey = await currentTenantKey();
     try {
-      const { count } = await sqlitePrisma.customer.updateMany({ where: { id, tenantKey }, data: { ...toDatabase(changes), synced: false } });
+      const { count } = await sqlitePrisma.customer.updateMany({ where: { id, tenantKey }, data: { ...checkYearOfBirth(changes), synced: false } });
       if (!count) throw new LocalDbError(`Update customer: no customer "${id}".`, "not-found");
     } catch (err) {
       translateError(err, "Update customer");

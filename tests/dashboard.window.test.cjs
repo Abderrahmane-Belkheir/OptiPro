@@ -13,9 +13,9 @@ runScript(
   await p.tenant.create({ data: { key: 't1', host: 'h1', name: 'T1' } });
   const S = { tenantKey: 't1', synced: true };
   const day = (n) => new Date(Date.now() + n * 86400000);
-  await p.customer.create({ data: { id: 'c1', name: 'Amina', createdAt: day(-10), ...S } });
-  await p.customer.create({ data: { id: 'c2', name: 'Karim', createdAt: day(-2), ...S } });
-  await p.customer.create({ data: { id: 'c3', name: 'Sara', createdAt: day(-5), ...S } });
+  await p.customer.create({ data: { yearOfBirth: 1990, id: 'c1', name: 'Amina', createdAt: day(-10), ...S } });
+  await p.customer.create({ data: { yearOfBirth: 1990, id: 'c2', name: 'Karim', createdAt: day(-2), ...S } });
+  await p.customer.create({ data: { yearOfBirth: 1990, id: 'c3', name: 'Sara', createdAt: day(-5), ...S } });
   const n = new Date();
   const now = new Date(Date.now() - 1000);
   const lastMonth = new Date(n.getFullYear(), n.getMonth() - 1, 1, 12, 0, 0);

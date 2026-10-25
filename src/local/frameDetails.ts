@@ -21,6 +21,8 @@ export interface FrameDetails {
   categoryName: string;
   reference: string | null;
   shape: string | null;
+  /** male | female | unisex, or null when it was not given. */
+  gender: string | null;
   colors: string[];
   eyeSize: number | null;
   bridge: number | null;
@@ -76,6 +78,7 @@ export async function frameDetails(id: string): Promise<FrameDetails | null> {
     categoryName: STATIC_CATEGORIES.find((c) => c.id === row.categoryId)?.name ?? "",
     reference: row.reference,
     shape: row.shape,
+    gender: row.gender,
     colors: decodeStringArray(row.colors),
     eyeSize: row.eyeSize,
     bridge: row.bridge,

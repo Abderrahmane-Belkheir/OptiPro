@@ -33,6 +33,8 @@ export interface Frame {
   costPrice: number | null;
   /** The shop's own short code (labels, website); optional for now, unique per shop. */
   code: string | null;
+  /** male | female | unisex, or none. */
+  gender?: string | null;
   tenantKey: string;
 }
 
@@ -56,8 +58,8 @@ export interface Customer {
   email: string | null;
   address: string | null;
   notes: string | null;
-  /** ISO 8601 timestamp. */
-  dateOfBirth: string | null;
+  /** The year of birth: a whole year after 1920 and before this year. */
+  yearOfBirth: number;
   /** ISO 8601 timestamp. */
   createdAt: string;
   tenantKey: string;
@@ -86,6 +88,7 @@ export interface NewFrame {
   reference?: string | null;
   costPrice?: number | null;
   code?: string | null;
+  gender?: string | null;
 }
 
 export interface NewAccessory {
@@ -108,8 +111,8 @@ export interface NewCustomer {
   email?: string | null;
   address?: string | null;
   notes?: string | null;
-  /** ISO 8601 date. */
-  dateOfBirth?: string | null;
+  /** The year of birth: a whole year after 1920 and before this year. */
+  yearOfBirth: number;
 }
 
 // ---- Shop management ---------------------------------------------------------------------------
@@ -208,8 +211,6 @@ export interface Lens extends Stamped {
 }
 
 export interface Order extends Stamped {
-  /** A 6-digit number the customer can follow the order with (local only for now); null for an order placed before it existed. */
-  trackingCode: number | null;
   id: string;
   /** e.g. CMD-2026-0042. Unique per shop. */
   number: string;

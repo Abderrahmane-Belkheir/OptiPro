@@ -101,9 +101,59 @@ async function launchApp(box, extraEnv = {}, page = /renderer[\\/]index\.html/) 
   const stop = async () => {
     try { ws.close(); } catch { /* already closed */ }
     try { execSync(`taskkill /F /T /PID ${app.pid}`, { stdio: "ignore" }); } catch { /* already gone */ }
+    // wait until the program is really gone: the app keeps ONE copy per user folder, so one started again at once must not meet the one just stopped
+    for (let i = 0; i < 50; i++) {
+      try { process.kill(app.pid, 0); } catch { break; }
+      await sleep(100);
+    }
     await sleep(600);
   };
   return { val, until, stop, problems, port, log: () => log };
+}
+
+/**
+ * Connects to ANOTHER window of an app that is already running (launchApp gave its debugging port): the one whose address matches `page`. For apps that change window while a
+ * test runs: the setup window is replaced by the app's own window, the app's windows by the "licence expired" page. Answers { val, until, close, problems } like launchApp.
+ */
+async function connectPage(port, page, waitMs = 15000) {
+  let wsUrl;
+  const t0 = Date.now();
+  while (!wsUrl && Date.now() - t0 < waitMs) {
+    try {
+      wsUrl = (await (await fetch(`http://127.0.0.1:${port}/json`, { signal: AbortSignal.timeout(1500) })).json()).find((t) => t.type === "page" && page.test(t.url))?.webSocketDebuggerUrl;
+    } catch {
+      /* not up yet */
+    }
+    if (!wsUrl) await sleep(150);
+  }
+  if (!wsUrl) throw new Error(`no window matching ${page} appeared`);
+  const ws = new WebSocket(wsUrl);
+  await new Promise((resolve, reject) => { ws.onopen = resolve; ws.onerror = () => reject(new Error("could not connect to the window")); setTimeout(() => reject(new Error("the window did not answer in time")), 8000); });
+  let id = 0;
+  const pending = new Map();
+  const problems = [];
+  ws.onmessage = (message) => {
+    const m = JSON.parse(message.data);
+    if (m.id && pending.has(m.id)) { pending.get(m.id)(m); pending.delete(m.id); }
+    else if (m.method === "Runtime.exceptionThrown") problems.push(m.params.exceptionDetails.exception?.description ?? m.params.exceptionDetails.text);
+  };
+  const send = (method, params = {}) => new Promise((resolve) => { const n = ++id; pending.set(n, resolve); ws.send(JSON.stringify({ id: n, method, params })); });
+  await send("Runtime.enable");
+  const val = async (expression) => {
+    const r = await send("Runtime.evaluate", { expression: `(async()=>JSON.stringify(await(${expression})))()`, awaitPromise: true, returnByValue: true });
+    if (r.result.exceptionDetails) throw new Error(r.result.exceptionDetails.exception?.description ?? r.result.exceptionDetails.text);
+    const v = r.result.result.value;
+    return v === undefined ? undefined : JSON.parse(v);
+  };
+  const until = async (expression, ms = 8000) => {
+    const t = Date.now();
+    while (Date.now() - t < ms) {
+      try { if (await val(expression)) return true; } catch { /* keep trying */ }
+      await sleep(120);
+    }
+    return false;
+  };
+  return { val, until, problems, close: () => { try { ws.close(); } catch { /* already closed */ } } };
 }
 
 /** A tiny test runner: `ck(ok, label, detail)` records and prints; `done()` prints the total and answers the exit code. */
@@ -117,4 +167,4 @@ function recorder() {
   };
 }
 
-module.exports = { ROOT, sandbox, runScript, launchApp, recorder, sleep };
+module.exports = { ROOT, sandbox, runScript, launchApp, connectPage, recorder, sleep };

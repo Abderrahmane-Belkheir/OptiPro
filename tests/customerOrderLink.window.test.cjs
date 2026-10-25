@@ -10,7 +10,7 @@ runScript(
   `
   await p.tenant.create({ data: { key: 't1', host: 'h1', name: 'T1' } });
   const S = { tenantKey: 't1', synced: true };
-  await p.customer.create({ data: { id: 'c1', name: 'Amina', ...S } });
+  await p.customer.create({ data: { yearOfBirth: 1990, id: 'c1', name: 'Amina', ...S } });
   const order = (id, number, status) => p.order.create({ data: { id, number, customerId: 'c1', status, subtotalCents: 100000, totalCents: 100000, ...S } });
   await order('o1', 'CMD-1', 'confirmed');
   await order('o2', 'CMD-2', 'cancelled');

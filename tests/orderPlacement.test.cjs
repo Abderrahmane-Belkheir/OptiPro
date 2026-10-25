@@ -36,8 +36,8 @@ const out = runScript(
   await p.tenant.create({ data: { key: 't1', host: 'h1', name: 'T1' } });
   await p.tenant.create({ data: { key: 't2', host: 'h2', name: 'T2' } });
   const S = (key) => ({ tenantKey: key, synced: true });
-  await p.customer.create({ data: { id: 'c1', name: 'Amina', ...S('t1') } });
-  await p.customer.create({ data: { id: 'c2', name: 'Karim', ...S('t1') } });
+  await p.customer.create({ data: { yearOfBirth: 1990, id: 'c1', name: 'Amina', ...S('t1') } });
+  await p.customer.create({ data: { yearOfBirth: 1990, id: 'c2', name: 'Karim', ...S('t1') } });
   const rx = (id, customerId, key) => p.prescription.create({ data: { id, customerId, prescribedAt: new Date('2026-01-10T00:00:00Z'), rightSphere: -2, leftSphere: -1.5, ...S(key) } });
   await rx('rx1', 'c1', 't1');
   await rx('rx2', 'c2', 't1');

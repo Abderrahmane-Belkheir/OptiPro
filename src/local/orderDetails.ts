@@ -46,8 +46,6 @@ export interface OrderDetails {
   subtotalCents: number;
   discountCents: number;
   totalCents: number;
-  /** The 6-digit code the customer follows the order with on the website; only an order with a prescription has one. */
-  trackingCode: number | null;
   /** What the lines cost in all, and what the order earns (its final price minus that cost); null when the cost of a line is not known. */
   costCents: number | null;
   profitCents: number | null;
@@ -90,7 +88,6 @@ async function loadDetails(id: string): Promise<OrderDetails> {
     subtotalCents: order.subtotalCents,
     discountCents: order.discountCents,
     totalCents: order.totalCents,
-    trackingCode: order.trackingCode,
     costCents: items.length > 0 && items.every((i) => i.unitCostCents !== null) ? items.reduce((sum, i) => sum + i.unitCostCents! * i.quantity, 0) : null,
     profitCents: items.length > 0 && items.every((i) => i.unitCostCents !== null) ? order.totalCents - items.reduce((sum, i) => sum + i.unitCostCents! * i.quantity, 0) : null,
     paidCents,
@@ -141,7 +138,18 @@ async function moveFrameStock(orderId: string, direction: 1 | -1): Promise<void>
 
 const isMoney = (v: unknown): v is number => Number.isInteger(v) && (v as number) >= 0 && (v as number) <= 100_000_000_00;
 
-export const localOrderDetailsService = {
+/**
+ * The changes to an order (its status, its money, a payment) are made ONE AT A TIME. Each one reads the order, decides, then writes; two at once (a double click, a slow answer
+ * and a second try) would both read the same state: the same last payment taken twice, an order cancelled twice with its frames put back in the stock twice.
+ */
+let changing: Promise<unknown> = Promise.resolve();
+function oneAtATime<T>(change: () => Promise<T>): Promise<T> {
+  const run = changing.then(change);
+  changing = run.then(() => undefined, () => undefined);
+  return run;
+}
+
+const orderDetails = {
   /** One order with its customer, lines and payments. A not-found error when it is not this shop's. */
   async get(id: string): Promise<OrderDetails> {
     if (typeof id !== "string" || !id) throw new LocalDbError("Order details: give the order's id.", "invalid-input");
@@ -247,4 +255,11 @@ export const localOrderDetailsService = {
     await localPaymentService.insert({ orderId: id, customerId: before.customer?.id ?? null, amountCents: amount, paidAt: new Date().toISOString(), notes });
     return loadDetails(id);
   },
+};
+
+export const localOrderDetailsService = {
+  get: orderDetails.get,
+  setStatus: (id: string, status: string) => oneAtATime(() => orderDetails.setStatus(id, status)),
+  edit: (id: string, input: Parameters<typeof orderDetails.edit>[1]) => oneAtATime(() => orderDetails.edit(id, input)),
+  pay: (id: string, input: Parameters<typeof orderDetails.pay>[1]) => oneAtATime(() => orderDetails.pay(id, input)),
 };

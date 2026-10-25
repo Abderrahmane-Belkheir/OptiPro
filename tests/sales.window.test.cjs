@@ -12,8 +12,8 @@ runScript(
   await p.tenant.create({ data: { key: 't1', host: 'h1', name: 'T1' } });
   const S = { tenantKey: 't1', synced: true };
   const day = (n) => new Date(Date.now() + n * 86400000);
-  await p.customer.create({ data: { id: 'c1', name: 'Amina Benali', ...S } });
-  await p.customer.create({ data: { id: 'c2', name: 'Karim Haddad', ...S } });
+  await p.customer.create({ data: { yearOfBirth: 1990, id: 'c1', name: 'Amina Benali', ...S } });
+  await p.customer.create({ data: { yearOfBirth: 1990, id: 'c2', name: 'Karim Haddad', ...S } });
   const order = (id, number, status, customerId, ordered, promised, total, extra = {}) => p.order.create({ data: { id, number, status, customerId, orderedAt: day(ordered), promisedAt: promised === null ? null : day(promised), totalCents: total, subtotalCents: total, ...extra, ...S } });
   await order('o1', 'CMD-0001', 'delivered', 'c1', -30, -25, 100000, { deliveredAt: day(-24) });
   await order('o2', 'CMD-0002', 'at_lab', 'c1', -10, -3, 80000);

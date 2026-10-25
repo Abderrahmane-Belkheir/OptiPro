@@ -361,7 +361,7 @@ export const localReportsService = {
       byCustomer.set(key, row);
     }
     const ids = [...byCustomer.keys()].filter(Boolean);
-    const names = new Map((ids.length ? await sqlitePrisma.customer.findMany({ where: { id: { in: ids } }, select: { id: true, name: true } }) : []).map((c) => [c.id, c.name]));
+    const names = new Map((ids.length === 0 ? [] : await sqlitePrisma.customer.findMany({ where: ids.length > 500 ? { tenantKey } : { id: { in: ids } }, select: { id: true, name: true } })).map((c) => [c.id, c.name]));
     for (const row of byCustomer.values()) if (row.customerId) row.customerName = names.get(row.customerId) ?? WALK_IN;
     out.customers = byCustomer.size;
     out.rows = [...byCustomer.values()].sort((a, b) => b.owedCents - a.owedCents || a.customerName.localeCompare(b.customerName)).slice(0, TOP);

@@ -90,6 +90,8 @@ model Frame {
   /// Manufacturer model code.
   reference    String?
   costPrice    Float?  @map("cost_price")
+  /// Who the frame is for: male | female | unisex (always lower case, as the server expects it). Optional: a frame without it sells and prints as any other. (Local database only for now: the server's tables do not have the column yet.)
+  gender       String?
 
   /// The shop's own short code for this product (what labels and the website show). Optional for now; unique per shop when set. The
   /// id stays the internal key: this is the code people read, say and scan. A simple code (3 lowercase letters, a dash, 3 digits: abc-123), made here, never reused.
@@ -179,7 +181,7 @@ model Customer {
   payments      Payment[]
   invoices      Invoice[]
 
-  dateOfBirth DateTime? @map("date_of_birth")
+  yearOfBirth   Int       @map("year_of_birth")
 
   @@map("customers")
 }
@@ -427,10 +429,6 @@ model Order {
   fittingHeightRight Float? @map("fitting_height_right")
   fittingHeightLeft  Float? @map("fitting_height_left")
 
-  /// A 6-digit number (100000 to 999999), different for every order of the shop, made when an order WITH A PRESCRIPTION is placed (the others have none): what a customer uses to follow the order (GET /api/orders/<code>).
-  /// Sent to the server with the order (the orders table there needs the column: backend/prisma/tracking_code.sql). Orders placed before it existed have none.
-  trackingCode Int? @map("tracking_code")
-
   items    OrderItem[]
   payments Payment[]
   invoices Invoice[]
@@ -443,7 +441,6 @@ model Order {
   updatedAt DateTime @updatedAt @map("updated_at")
 
   @@unique([tenantKey, number])
-  @@unique([tenantKey, trackingCode])
   @@index([customerId])
   @@index([tenantKey, status])
   @@map("orders")

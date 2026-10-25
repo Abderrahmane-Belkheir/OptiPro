@@ -276,8 +276,20 @@ async function start(): Promise<void> {
     createWindow();
 }
 
-app.whenReady().then(() => {
-    // The Edit menu is what makes Ctrl+C / Ctrl+V / Ctrl+X / Ctrl+A / Ctrl+Z work in every window (the menu bar itself stays hidden).
-    Menu.setApplicationMenu(Menu.buildFromTemplate(editMenuTemplate()));
-    return start();
-});
+// ONE copy of the app per computer. A second copy (the icon clicked twice) would share the same database and run a second sync: two copies numbering orders at the same time
+// can give two orders the same number, and one of them would be refused. The second copy brings the first one's window to the front and ends.
+if (!app.requestSingleInstanceLock()) {
+    app.quit();
+} else {
+    app.on("second-instance", () => {
+        const win = BrowserWindow.getAllWindows()[0];
+        if (!win) return;
+        if (win.isMinimized()) win.restore();
+        win.focus();
+    });
+    app.whenReady().then(() => {
+        // The Edit menu is what makes Ctrl+C / Ctrl+V / Ctrl+X / Ctrl+A / Ctrl+Z work in every window (the menu bar itself stays hidden).
+        Menu.setApplicationMenu(Menu.buildFromTemplate(editMenuTemplate()));
+        return start();
+    });
+}

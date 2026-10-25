@@ -90,7 +90,7 @@
         h(
           "div",
           { class: "dialog__body" },
-          h("dl", { class: "order-summary" }, ...[["Total", money(result.totalCents)], ["Paid", money(result.depositCents)], ["Left to pay", money(left)], ...(order.trackingCode ? [["Tracking code", String(order.trackingCode)]] : [])].map(([label, value]) => h("div", { class: "order-summary__row" }, h("dt", null, label), h("dd", null, value)))),
+          h("dl", { class: "order-summary" }, ...[["Total", money(result.totalCents)], ["Paid", money(result.depositCents)], ["Left to pay", money(left)]].map(([label, value]) => h("div", { class: "order-summary__row" }, h("dt", null, label), h("dd", null, value)))),
           result.sentToServer ? null : h("p", { class: "od-hint", "data-not-sent": "" }, "Saved on this computer. It will reach the server on the next sync."),
           h("h3", { class: "order-form__heading" }, "Print"),
           orderPrintBar(order.id),
